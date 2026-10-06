@@ -1,0 +1,6 @@
+appId: com.crisanfitos.stitchmesh3d
+---
+- launchApp:
+    clearState: true
+- assertVisible: "StitchMesh 3D"
+- takeScreenshot: "smoke_launch_success"
