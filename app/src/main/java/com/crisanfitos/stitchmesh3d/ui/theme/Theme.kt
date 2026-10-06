@@ -1,6 +1,5 @@
-package com.example.stitchmesh3d.ui.theme
+package com.crisanfitos.stitchmesh3d.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.stitchmesh3d"
+    namespace = "com.crisanfitos.stitchmesh3d"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.stitchmesh3d"
+        applicationId = "com.crisanfitos.stitchmesh3d"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

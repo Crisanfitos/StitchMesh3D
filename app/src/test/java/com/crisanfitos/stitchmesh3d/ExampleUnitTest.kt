@@ -1,4 +1,4 @@
-package com.example.stitchmesh3d
+package com.crisanfitos.stitchmesh3d
 
 import org.junit.Test
 

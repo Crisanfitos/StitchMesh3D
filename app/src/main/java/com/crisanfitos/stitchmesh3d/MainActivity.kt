@@ -1,4 +1,4 @@
-package com.example.stitchmesh3d
+package com.crisanfitos.stitchmesh3d
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -12,7 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.example.stitchmesh3d.ui.theme.StitchMesh3DTheme
+import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

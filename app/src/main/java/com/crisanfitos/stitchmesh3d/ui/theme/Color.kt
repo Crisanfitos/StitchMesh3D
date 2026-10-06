@@ -1,4 +1,4 @@
-package com.example.stitchmesh3d.ui.theme
+package com.crisanfitos.stitchmesh3d.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
