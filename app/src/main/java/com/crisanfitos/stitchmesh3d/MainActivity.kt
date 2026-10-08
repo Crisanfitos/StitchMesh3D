@@ -67,16 +67,36 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshYarnGold
+import androidx.activity.viewModels
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import com.crisanfitos.stitchmesh3d.ui.dashboard.DashboardScreen
+import com.crisanfitos.stitchmesh3d.ui.dashboard.DashboardViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private val dashboardViewModel: DashboardViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             StitchMesh3DTheme {
-                StitchMeshWorkbenchScreen()
+                var selectedProjectId by remember { mutableStateOf<String?>(null) }
+
+                if (selectedProjectId == null) {
+                    DashboardScreen(
+                        viewModel = dashboardViewModel,
+                        onNavigateToWorkspace = { id -> selectedProjectId = id }
+                    )
+                } else {
+                    StitchMeshWorkbenchScreen(
+                        projectId = selectedProjectId,
+                        onBackToDashboard = { selectedProjectId = null }
+                    )
+                }
             }
         }
     }
@@ -84,7 +104,10 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun StitchMeshWorkbenchScreen() {
+fun StitchMeshWorkbenchScreen(
+    projectId: String? = null,
+    onBackToDashboard: (() -> Unit)? = null
+) {
     var selectedStitch by remember { mutableStateOf<StitchType>(StitchType.SingleCrochet) }
     var formulaText by remember { mutableStateOf("6 pb, 1 aum, 2 pb") }
 
@@ -110,7 +133,7 @@ fun StitchMeshWorkbenchScreen() {
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = "CAD ENGINE",
+                                    text = if (projectId != null) "PROYECTO: ${projectId.take(8)}" else "CAD ENGINE",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = StitchMeshOnAccent
@@ -124,12 +147,24 @@ fun StitchMeshWorkbenchScreen() {
                         )
                     }
                 },
+                navigationIcon = {
+                    if (onBackToDashboard != null) {
+                        IconButton(onClick = onBackToDashboard) {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Volver a la Biblioteca",
+                                tint = StitchMeshTextPrimary
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = StitchMeshSurfaceContainer
                 )
             )
         }
-    ) { innerPadding ->
+    )
+ { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
