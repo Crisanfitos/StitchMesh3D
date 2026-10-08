@@ -88,6 +88,7 @@ fun CrochetViewportScreen(
             // Renderizado nativo 3D con Google Filament y shader Wool PBR
             CrochetViewport3D(
                 meshGeometry = state.meshGeometry,
+                cameraPreset = state.selectedCameraPreset,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
