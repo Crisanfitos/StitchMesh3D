@@ -28,7 +28,9 @@ data class ViewportState(
     val orbitPitch: Float = 30f,
     val zoomScale: Float = 1.0f,
     val panOffset: Offset = Offset.Zero,
-    val meshGeometry: com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry? = null
+    val meshGeometry: com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry? = null,
+    val showDimensionCallouts: Boolean = true,
+    val useCentimeters: Boolean = false
 ) : ViewState
 
 /**
@@ -42,6 +44,8 @@ sealed interface ViewportIntent : ViewIntent {
     data class ToggleWireframe(val isWireframe: Boolean) : ViewportIntent
     data class SelectCameraPreset(val preset: CameraPreset) : ViewportIntent
     data object ToggleFullscreen : ViewportIntent
+    data object ToggleDimensionCallouts : ViewportIntent
+    data object ToggleUnitSystem : ViewportIntent
     data class UpdateOrbit(val deltaYaw: Float, val deltaPitch: Float) : ViewportIntent
     data class UpdateZoom(val scaleMultiplier: Float) : ViewportIntent
     data class UpdatePan(val deltaOffset: Offset) : ViewportIntent

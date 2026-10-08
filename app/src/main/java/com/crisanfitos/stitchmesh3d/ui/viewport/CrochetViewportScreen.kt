@@ -138,13 +138,17 @@ fun CrochetViewportScreen(
             }
         }
 
-        // Overlay HUD superior: cotas métricas (mm), telemetría gráfica y presets de cámara
+        // Overlay HUD superior: cotas métricas (mm/cm), telemetría gráfica y presets de cámara
         ViewportHudOverlay(
             dimensions = state.dimensions,
             telemetry = state.telemetry,
             selectedCameraPreset = state.selectedCameraPreset,
             onCameraPresetSelected = { onIntent(ViewportIntent.SelectCameraPreset(it)) },
             isFullscreen = state.isFullscreen,
+            showDimensionCallouts = state.showDimensionCallouts,
+            useCentimeters = state.useCentimeters,
+            onToggleDimensionCallouts = { onIntent(ViewportIntent.ToggleDimensionCallouts) },
+            onToggleUnitSystem = { onIntent(ViewportIntent.ToggleUnitSystem) },
             onToggleFullscreen = { onIntent(ViewportIntent.ToggleFullscreen) },
             onBackClick = if (state.isFullscreen) onCloseFullscreen else null
         )

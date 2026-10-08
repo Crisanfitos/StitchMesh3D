@@ -24,9 +24,15 @@ class ViewportViewModel @Inject constructor() :
     init {
         try {
             val sampleMesh = generateDefaultSampleMesh()
+            val bbox = sampleMesh.computeBoundingBox()
             setState {
                 copy(
                     meshGeometry = sampleMesh,
+                    dimensions = ViewportDimensionsUiModel(
+                        widthMm = bbox.widthMm,
+                        heightMm = bbox.heightMm,
+                        depthMm = bbox.depthMm
+                    ),
                     telemetry = telemetry.copy(
                         polygonCount = sampleMesh.triangleCount,
                         vertexCount = sampleMesh.vertexCount
@@ -44,8 +50,15 @@ class ViewportViewModel @Inject constructor() :
                 setState {
                     val count = intent.meshGeometry?.triangleCount ?: (currentPeelRound * 180)
                     val vCount = intent.meshGeometry?.vertexCount ?: (count / 2 + 32)
+                    val computedDims = intent.meshGeometry?.let { mesh ->
+                        val bbox = mesh.computeBoundingBox()
+                        if (!bbox.isEmpty) {
+                            ViewportDimensionsUiModel(bbox.widthMm, bbox.heightMm, bbox.depthMm)
+                        } else null
+                    } ?: dimensions
                     copy(
                         meshGeometry = intent.meshGeometry,
+                        dimensions = computedDims,
                         telemetry = telemetry.copy(
                             polygonCount = count,
                             vertexCount = vCount
@@ -67,6 +80,12 @@ class ViewportViewModel @Inject constructor() :
             }
             is ViewportIntent.ToggleWireframe -> {
                 setState { copy(isWireframe = intent.isWireframe) }
+            }
+            is ViewportIntent.ToggleDimensionCallouts -> {
+                setState { copy(showDimensionCallouts = !showDimensionCallouts) }
+            }
+            is ViewportIntent.ToggleUnitSystem -> {
+                setState { copy(useCentimeters = !useCentimeters) }
             }
             is ViewportIntent.SelectCameraPreset -> {
                 setState {
@@ -138,10 +157,11 @@ class ViewportViewModel @Inject constructor() :
                 val rounds = intent.totalRounds.coerceAtLeast(1)
                 val clampedPeel = state.value.currentPeelRound.coerceIn(1, rounds)
                 setState {
+                    val computedDimensions = calculateDimensions(clampedPeel, intent.hookSizeMm)
                     copy(
                         totalRounds = rounds,
                         currentPeelRound = clampedPeel,
-                        dimensions = calculateDimensions(clampedPeel, intent.hookSizeMm),
+                        dimensions = computedDimensions,
                         telemetry = calculateTelemetry(clampedPeel, intent.yarnWeightName, intent.hookSizeMm)
                     )
                 }
