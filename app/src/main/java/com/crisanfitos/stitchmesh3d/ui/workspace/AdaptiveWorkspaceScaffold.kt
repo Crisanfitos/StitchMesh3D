@@ -43,6 +43,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser
+import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnGaugeStandard
+import com.crisanfitos.stitchmesh3d.core.geometry.AdaptiveTessellator
+import com.crisanfitos.stitchmesh3d.core.geometry.RingProfile
+import com.crisanfitos.stitchmesh3d.core.geometry.RingProfileGenerator
 import com.crisanfitos.stitchmesh3d.ui.viewport.CrochetViewportScreen
 import com.crisanfitos.stitchmesh3d.ui.viewport.ViewportIntent
 import com.crisanfitos.stitchmesh3d.ui.viewport.ViewportViewModel
@@ -145,7 +150,7 @@ fun AdaptiveWorkspaceScaffold(
     val viewportState by viewportViewModel.state.collectAsState()
     var isFullscreenViewport by remember { mutableStateOf(false) }
 
-    LaunchedEffect(rounds.size, hookSizeMm, yarnWeightName) {
+    LaunchedEffect(rounds, hookSizeMm, yarnWeightName) {
         viewportViewModel.processIntent(
             ViewportIntent.UpdatePatternParameters(
                 totalRounds = rounds.size,
@@ -153,6 +158,39 @@ fun AdaptiveWorkspaceScaffold(
                 yarnWeightName = yarnWeightName
             )
         )
+
+        // Generación reactiva de malla 3D para las vueltas sintáctica y aritméticamente válidas
+        val validRounds = rounds.filter { it.isValid }
+        if (validRounds.isNotEmpty()) {
+            try {
+                val gauge = YarnGaugeStandard(
+                    id = 1,
+                    yarnWeightCategory = com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory.MEDIUM,
+                    categoryName = yarnWeightName,
+                    hookSizeMm = hookSizeMm,
+                    stitchWidthMm = hookSizeMm * 1.1f,
+                    stitchHeightMm = hookSizeMm * 1.25f,
+                    stitchThicknessMm = hookSizeMm * 0.55f
+                )
+                val ringProfiles = ArrayList<RingProfile>()
+                var prevRing: RingProfile? = null
+                for ((idx, r) in validRounds.withIndex()) {
+                    val parsed = CrochetParser.parse(r.rawInstruction)
+                    val stitches = parsed.ast?.flatten()?.map { it.stitchType } ?: emptyList()
+                    if (stitches.isNotEmpty()) {
+                        val ring = RingProfileGenerator.generateRing(idx + 1, stitches, gauge, prevRing)
+                        ringProfiles.add(ring)
+                        prevRing = ring
+                    }
+                }
+                if (ringProfiles.isNotEmpty()) {
+                    val mesh = AdaptiveTessellator.tessellate(ringProfiles)
+                    viewportViewModel.processIntent(ViewportIntent.SetMeshGeometry(mesh))
+                }
+            } catch (_: Throwable) {
+                // Si ocurre una discontinuidad en alguna vuelta en edición, conservar la última válida
+            }
+        }
     }
 
     fun handleToken(token: String) {

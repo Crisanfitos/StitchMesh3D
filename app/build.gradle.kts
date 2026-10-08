@@ -62,6 +62,12 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
+    // Google Filament 3D Engine
+    implementation(libs.filament.android)
+    implementation(libs.filament.utils.android)
+    implementation(libs.gltfio.android)
+
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
