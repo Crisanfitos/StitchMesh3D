@@ -62,6 +62,10 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetQuickKeyboard
 import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetTokenFormatter
 import com.crisanfitos.stitchmesh3d.ui.viewport.components.PeelSliderBar
+import com.crisanfitos.stitchmesh3d.ui.viewport.components.CameraPreset
+import com.crisanfitos.stitchmesh3d.ui.viewport.components.ViewportDimensionsUiModel
+import com.crisanfitos.stitchmesh3d.ui.viewport.components.ViewportHudOverlay
+import com.crisanfitos.stitchmesh3d.ui.viewport.components.ViewportTelemetryUiModel
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextDisabled
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
@@ -216,7 +220,9 @@ fun AdaptiveWorkspaceScaffold(
                         } else {
                             DefaultViewportPlaceholder(
                                 roundCount = rounds.size,
-                                activeRoundIndex = rounds.size
+                                activeRoundIndex = rounds.size,
+                                hookSizeMm = hookSizeMm,
+                                yarnWeightName = yarnWeightName
                             )
                         }
                     }
@@ -344,7 +350,9 @@ fun AdaptiveWorkspaceScaffold(
                                     } else {
                                         DefaultViewportPlaceholder(
                                             roundCount = rounds.size,
-                                            activeRoundIndex = rounds.size
+                                            activeRoundIndex = rounds.size,
+                                            hookSizeMm = hookSizeMm,
+                                            yarnWeightName = yarnWeightName
                                         )
                                     }
                                 }
@@ -447,16 +455,42 @@ private fun RoundEditorPane(
 }
 
 /**
- * Placeholder estilizado para el Visor 3D con integración del PeelSliderBar interactivo.
+ * Placeholder estilizado para el Visor 3D con integración del PeelSliderBar interactivo
+ * y la capa HUD con cotas métricas (mm) y selector de cámara (SM-049).
  */
 @Composable
 private fun DefaultViewportPlaceholder(
     roundCount: Int = 3,
     activeRoundIndex: Int = 3,
+    hookSizeMm: Float = 3.5f,
+    yarnWeightName: String = "#4 Worsted",
     onRoundSelected: ((Int) -> Unit)? = null
 ) {
     var peelRound by remember(roundCount) { mutableIntStateOf(activeRoundIndex) }
     var isWireframe by remember { mutableStateOf(false) }
+    var selectedCameraPreset by remember { mutableStateOf(CameraPreset.ISOMETRIC) }
+
+    // Estimación geométrica de cotas proyectadas calibradas por tensión (RF-2.2, RF-3.3)
+    val dimensions = remember(hookSizeMm, peelRound) {
+        val baseRadiusMm = (peelRound * hookSizeMm * 2.2f).coerceAtLeast(30f)
+        val heightMm = (peelRound * hookSizeMm * 3.1f).coerceAtLeast(25f)
+        ViewportDimensionsUiModel(
+            widthMm = baseRadiusMm * 2f,
+            heightMm = heightMm,
+            depthMm = baseRadiusMm * 2f
+        )
+    }
+
+    // Telemetría gráfica técnica en tiempo real
+    val telemetry = remember(yarnWeightName, hookSizeMm, peelRound) {
+        val estimatedPolys = (peelRound * 180).coerceAtLeast(360)
+        ViewportTelemetryUiModel(
+            polygonCount = estimatedPolys,
+            vertexCount = estimatedPolys / 2 + 32,
+            fps = 60,
+            tensionGaugeLabel = "$yarnWeightName · ${hookSizeMm} mm"
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -507,14 +541,22 @@ private fun DefaultViewportPlaceholder(
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = "Capa activa: $peelRound / $roundCount · 60 FPS",
+                    text = "Capa activa: $peelRound / $roundCount · Vista: ${selectedCameraPreset.label}",
                     fontSize = 11.sp,
                     color = StitchMeshYarnGold
                 )
             }
         }
 
-        // Overlay inferior: PeelSliderBar interactiva
+        // Overlay HUD superior con cotas dimensionales métricas y presets de cámara
+        ViewportHudOverlay(
+            dimensions = dimensions,
+            telemetry = telemetry,
+            selectedCameraPreset = selectedCameraPreset,
+            onCameraPresetSelected = { selectedCameraPreset = it }
+        )
+
+        // Overlay inferior: PeelSliderBar interactiva con switch de alambre
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
