@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">StitchMesh3D</string>
+    <string name="tension_label">Tensión</string>
+    <string name="tension_sample_10x10">Muestra de tensión (10x10 cm)</string>
+    <string name="tension_calibrator_title">Calibrador de Tensión</string>
+    <string name="yarn_hook_gauge">Grosor de hilado y calibre de aguja</string>
 </resources>
