@@ -45,8 +45,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import com.crisanfitos.stitchmesh3d.core.engine.model.StitchRegistry
 import com.crisanfitos.stitchmesh3d.core.engine.model.StitchType
+import com.crisanfitos.stitchmesh3d.core.engine.validator.ArithmeticValidator
+import com.crisanfitos.stitchmesh3d.core.engine.validator.CorrectionAssistant
+import com.crisanfitos.stitchmesh3d.core.engine.validator.CorrectionSuggestion
+import com.crisanfitos.stitchmesh3d.core.engine.validator.RoundValidationResult
+import com.crisanfitos.stitchmesh3d.core.engine.validator.SuggestionActionType
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
@@ -331,6 +338,233 @@ fun StitchMeshWorkbenchScreen() {
                                 style = CrochetTypography.tokenBadge,
                                 color = StitchMeshOnAccent
                             )
+                        }
+                    }
+                }
+            }
+
+            // 4. Linter Formal & Asistente de Corrección (RF-1.2, RF-1.3, RF-1.5)
+            item {
+                InteractiveLinterSection()
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun InteractiveLinterSection() {
+    var roundInput by remember { mutableStateOf("V3: [1 pb, 1 aum] * 5 (15)") }
+    var baseInput by remember { mutableStateOf("12") }
+
+    val previousBase = baseInput.toIntOrNull()
+    val validationResult = remember(roundInput, previousBase) {
+        ArithmeticValidator.validateRound(
+            rawLine = roundInput,
+            previousRoundStitches = previousBase
+        )
+    }
+
+    val suggestions = remember(validationResult) {
+        CorrectionAssistant.suggestCorrections(validationResult)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = StitchMeshSurfaceContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Linter Formal & Corrección (RF-1.2, 1.3, 1.5)",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = StitchMeshTerracotta,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (validationResult.isValid) StitchMeshSageGreen else StitchMeshCoralRed)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (validationResult.isValid) "INVARIANTE OK" else "INCONSISTENCIA",
+                        style = CrochetTypography.tokenBadge,
+                        color = StitchMeshOnAccent
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Presiona un caso de prueba o edita libremente la instrucción y la base previa:",
+                style = MaterialTheme.typography.bodySmall,
+                color = StitchMeshTextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Presets
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val presets = listOf(
+                    "V3: [1 pb, 1 aum] * 5 (15)" to "12",
+                    "V2: 6 aum (14)" to "6",
+                    "V1: 6 pb (6)" to "0",
+                    "V1: AM 6 (6)" to "0",
+                    "V3: [1 pb, 1 aum] * 6 (18)" to "12"
+                )
+
+                presets.forEach { (presetLine, presetBase) ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (roundInput == presetLine) StitchMeshTerracotta else StitchMeshSurfaceHigh)
+                            .clickable {
+                                roundInput = presetLine
+                                baseInput = presetBase
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = presetLine.substringBefore(" ("),
+                            style = CrochetTypography.tokenBadge,
+                            color = if (roundInput == presetLine) StitchMeshOnAccent else StitchMeshTextPrimary
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = roundInput,
+                    onValueChange = { roundInput = it },
+                    label = { Text("Instrucción de Vuelta", color = StitchMeshTextSecondary) },
+                    modifier = Modifier.weight(1f),
+                    textStyle = CrochetTypography.formulaInput,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = StitchMeshTextPrimary,
+                        unfocusedTextColor = StitchMeshTextPrimary,
+                        focusedBorderColor = StitchMeshTerracotta,
+                        unfocusedBorderColor = StitchMeshSurfaceBorder,
+                        focusedContainerColor = StitchMeshSurfaceHigh,
+                        unfocusedContainerColor = StitchMeshSurfaceHigh
+                    )
+                )
+
+                OutlinedTextField(
+                    value = baseInput,
+                    onValueChange = { baseInput = it },
+                    label = { Text("Base (S_k-1)", color = StitchMeshTextSecondary) },
+                    modifier = Modifier.width(100.dp),
+                    textStyle = CrochetTypography.formulaInput,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = StitchMeshTextPrimary,
+                        unfocusedTextColor = StitchMeshTextPrimary,
+                        focusedBorderColor = StitchMeshTerracotta,
+                        unfocusedBorderColor = StitchMeshSurfaceBorder,
+                        focusedContainerColor = StitchMeshSurfaceHigh,
+                        unfocusedContainerColor = StitchMeshSurfaceHigh
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Diagnóstico
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(containerColor = StitchMeshSurfaceHigh)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "ΣC: ${validationResult.totalConsumed} / Base: ${previousBase ?: 0}",
+                            style = CrochetTypography.matrixValue,
+                            color = StitchMeshTextPrimary
+                        )
+                        Text(
+                            text = "ΣP: ${validationResult.totalProduced} / Decl: ${validationResult.declaredCount ?: "-"}",
+                            style = CrochetTypography.matrixValue,
+                            color = StitchMeshYarnGold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = validationResult.message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (validationResult.isValid) StitchMeshSageGreen else StitchMeshCoralRed
+                    )
+                }
+            }
+
+            // Sugerencias de corrección si existen
+            if (suggestions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "💡 Sugerencias de Corrección Automática (RF-1.5):",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = StitchMeshYarnGold,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    suggestions.forEach { suggestion ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = StitchMeshSurfaceHigh)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = suggestion.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = StitchMeshTextPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = suggestion.explanation,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = StitchMeshTextSecondary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Button(
+                                    onClick = { roundInput = suggestion.correctedText },
+                                    colors = ButtonDefaults.buttonColors(containerColor = StitchMeshTerracotta),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = "Aplicar: ${suggestion.correctedText}",
+                                        style = CrochetTypography.formulaInput,
+                                        color = StitchMeshOnAccent,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
                         }
                     }
                 }
