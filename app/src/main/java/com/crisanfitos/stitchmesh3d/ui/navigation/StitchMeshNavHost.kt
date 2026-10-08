@@ -91,7 +91,7 @@ fun StitchMeshNavHost(
             )
         ) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getString(StitchMeshDestination.Workspace.ARG_PROJECT_ID)
-            StitchMeshWorkbenchScreen(
+            com.crisanfitos.stitchmesh3d.ui.workspace.WorkspaceScreen(
                 projectId = projectId,
                 onBackToDashboard = {
                     navController.popBackStack()
