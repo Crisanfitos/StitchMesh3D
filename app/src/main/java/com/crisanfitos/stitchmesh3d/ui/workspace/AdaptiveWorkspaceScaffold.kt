@@ -36,11 +36,16 @@ import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.crisanfitos.stitchmesh3d.ui.viewport.CrochetViewportScreen
+import com.crisanfitos.stitchmesh3d.ui.viewport.ViewportIntent
+import com.crisanfitos.stitchmesh3d.ui.viewport.ViewportViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -119,6 +124,20 @@ fun AdaptiveWorkspaceScaffold(
     val activeRoundId = selectedRoundId ?: internalSelectedRoundId
     var isKeyboardVisible by remember { mutableStateOf(showQuickKeyboard) }
 
+    val viewportViewModel = remember { ViewportViewModel() }
+    val viewportState by viewportViewModel.state.collectAsState()
+    var isFullscreenViewport by remember { mutableStateOf(false) }
+
+    LaunchedEffect(rounds.size, hookSizeMm, yarnWeightName) {
+        viewportViewModel.processIntent(
+            ViewportIntent.UpdatePatternParameters(
+                totalRounds = rounds.size,
+                hookSizeMm = hookSizeMm,
+                yarnWeightName = yarnWeightName
+            )
+        )
+    }
+
     fun handleToken(token: String) {
         val target = rounds.firstOrNull { it.id == activeRoundId } ?: rounds.lastOrNull()
         if (target != null) {
@@ -139,15 +158,17 @@ fun AdaptiveWorkspaceScaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = StitchMeshNeutralDark,
         topBar = {
-            WorkspaceTopBar(
-                projectTitle = projectTitle,
-                hookSizeMm = hookSizeMm,
-                yarnWeightName = yarnWeightName,
-                validationStatus = validationStatus,
-                onBackClick = onBackClick,
-                onCalibrateTensionClick = onCalibrateTensionClick,
-                onExportClick = onExportClick
-            )
+            if (!isFullscreenViewport) {
+                WorkspaceTopBar(
+                    projectTitle = projectTitle,
+                    hookSizeMm = hookSizeMm,
+                    yarnWeightName = yarnWeightName,
+                    validationStatus = validationStatus,
+                    onBackClick = onBackClick,
+                    onCalibrateTensionClick = onCalibrateTensionClick,
+                    onExportClick = onExportClick
+                )
+            }
         }
     ) { innerPadding ->
         BoxWithConstraints(
@@ -155,7 +176,22 @@ fun AdaptiveWorkspaceScaffold(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            val isTablet = maxWidth >= 840.dp
+            if (isFullscreenViewport) {
+                // Modo Visor 3D Pantalla Completa (Stitch screens 1d1f9e82 y 244f94d7)
+                CrochetViewportScreen(
+                    state = viewportState.copy(isFullscreen = true),
+                    onIntent = { intent ->
+                        if (intent is ViewportIntent.ToggleFullscreen) {
+                            isFullscreenViewport = false
+                        } else {
+                            viewportViewModel.processIntent(intent)
+                        }
+                    },
+                    onCloseFullscreen = { isFullscreenViewport = false },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                val isTablet = maxWidth >= 840.dp
 
             if (isTablet) {
                 // Modo Tablet Dual-Pane: 40% Editor (izquierda) / 60% Visor 3D (derecha)
@@ -218,11 +254,16 @@ fun AdaptiveWorkspaceScaffold(
                         if (viewportContent != null) {
                             viewportContent()
                         } else {
-                            DefaultViewportPlaceholder(
-                                roundCount = rounds.size,
-                                activeRoundIndex = rounds.size,
-                                hookSizeMm = hookSizeMm,
-                                yarnWeightName = yarnWeightName
+                            CrochetViewportScreen(
+                                state = viewportState.copy(isFullscreen = false),
+                                onIntent = { intent ->
+                                    if (intent is ViewportIntent.ToggleFullscreen) {
+                                        isFullscreenViewport = true
+                                    } else {
+                                        viewportViewModel.processIntent(intent)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
@@ -348,11 +389,16 @@ fun AdaptiveWorkspaceScaffold(
                                     if (viewportContent != null) {
                                         viewportContent()
                                     } else {
-                                        DefaultViewportPlaceholder(
-                                            roundCount = rounds.size,
-                                            activeRoundIndex = rounds.size,
-                                            hookSizeMm = hookSizeMm,
-                                            yarnWeightName = yarnWeightName
+                                        CrochetViewportScreen(
+                                            state = viewportState.copy(isFullscreen = false),
+                                            onIntent = { intent ->
+                                                if (intent is ViewportIntent.ToggleFullscreen) {
+                                                    isFullscreenViewport = true
+                                                } else {
+                                                    viewportViewModel.processIntent(intent)
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxSize()
                                         )
                                     }
                                 }
@@ -363,6 +409,7 @@ fun AdaptiveWorkspaceScaffold(
             }
         }
     }
+}
 }
 
 /**
