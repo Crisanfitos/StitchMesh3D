@@ -77,6 +77,7 @@ import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStat
 import com.crisanfitos.stitchmesh3d.ui.workspace.AdaptiveWorkspaceScaffold
 import com.crisanfitos.stitchmesh3d.ui.workspace.ProjectPartUiModel
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
+import com.crisanfitos.stitchmesh3d.ui.navigation.StitchMeshNavHost
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -88,19 +89,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             StitchMesh3DTheme {
-                var selectedProjectId by remember { mutableStateOf<String?>(null) }
-
-                if (selectedProjectId == null) {
-                    DashboardScreen(
-                        viewModel = dashboardViewModel,
-                        onNavigateToWorkspace = { id -> selectedProjectId = id }
-                    )
-                } else {
-                    StitchMeshWorkbenchScreen(
-                        projectId = selectedProjectId,
-                        onBackToDashboard = { selectedProjectId = null }
-                    )
-                }
+                StitchMeshNavHost(dashboardViewModel = dashboardViewModel)
             }
         }
     }
@@ -110,7 +99,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun StitchMeshWorkbenchScreen(
     projectId: String? = null,
-    onBackToDashboard: (() -> Unit)? = null
+    onBackToDashboard: (() -> Unit)? = null,
+    onCalibrateTension: (() -> Unit)? = null
 ) {
     var parts by remember {
         mutableStateOf(
@@ -191,6 +181,7 @@ fun StitchMeshWorkbenchScreen(
         rounds = rounds,
         validationStatus = validationStatus,
         onBackClick = { onBackToDashboard?.invoke() },
+        onCalibrateTensionClick = onCalibrateTension,
         onPartSelected = { selectedPartId = it },
         onInstructionChanged = { roundId, newText ->
             rounds = recalculateRounds(

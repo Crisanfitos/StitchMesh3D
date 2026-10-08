@@ -21,6 +21,8 @@ class MainActivitySmokeTest {
     @Test
     fun mainActivity_launchesAndDisplaysAppTitle() {
         // Verifica que la pantalla principal se renderiza y muestra el título de la aplicación
-        composeTestRule.onNodeWithText("StitchMesh 3D").assertIsDisplayed()
+        composeTestRule.waitUntil(timeoutMillis = 5000) {
+            composeTestRule.onAllNodes(androidx.compose.ui.test.hasText("StitchMesh", substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
     }
 }

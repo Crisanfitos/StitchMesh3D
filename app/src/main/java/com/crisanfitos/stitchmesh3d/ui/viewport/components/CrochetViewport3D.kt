@@ -207,9 +207,11 @@ fun CrochetViewport3D(
                 }
             },
             onRelease = {
-                choreographerCallbackRef[0]?.let {
-                    Choreographer.getInstance().removeFrameCallback(it)
-                }
+                try {
+                    choreographerCallbackRef[0]?.let {
+                        Choreographer.getInstance().removeFrameCallback(it)
+                    }
+                } catch (_: Throwable) {}
                 choreographerCallbackRef[0] = null
 
                 val viewer = modelViewerRef[0]
@@ -218,12 +220,18 @@ fun CrochetViewport3D(
                     for (i in lights.indices) {
                         val light = lights[i]
                         if (light != 0) {
-                            viewer.scene.removeEntity(light)
-                            EntityManager.get().destroy(light)
+                            try {
+                                viewer.scene.removeEntity(light)
+                            } catch (_: Throwable) {}
+                            try {
+                                EntityManager.get().destroy(light)
+                            } catch (_: Throwable) {}
                             lights[i] = 0
                         }
                     }
-                    viewer.destroyModel()
+                    try {
+                        viewer.destroyModel()
+                    } catch (_: Throwable) {}
                 }
                 modelViewerRef[0] = null
                 manipulatorRef[0] = null
@@ -233,9 +241,11 @@ fun CrochetViewport3D(
 
     DisposableEffect(Unit) {
         onDispose {
-            choreographerCallbackRef[0]?.let {
-                Choreographer.getInstance().removeFrameCallback(it)
-            }
+            try {
+                choreographerCallbackRef[0]?.let {
+                    Choreographer.getInstance().removeFrameCallback(it)
+                }
+            } catch (_: Throwable) {}
             choreographerCallbackRef[0] = null
 
             val viewer = modelViewerRef[0]
@@ -244,12 +254,18 @@ fun CrochetViewport3D(
                 for (i in lights.indices) {
                     val light = lights[i]
                     if (light != 0) {
-                        viewer.scene.removeEntity(light)
-                        EntityManager.get().destroy(light)
+                        try {
+                            viewer.scene.removeEntity(light)
+                        } catch (_: Throwable) {}
+                        try {
+                            EntityManager.get().destroy(light)
+                        } catch (_: Throwable) {}
                         lights[i] = 0
                     }
                 }
-                viewer.destroyModel()
+                try {
+                    viewer.destroyModel()
+                } catch (_: Throwable) {}
             }
             modelViewerRef[0] = null
             manipulatorRef[0] = null
