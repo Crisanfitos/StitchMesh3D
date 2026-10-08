@@ -42,7 +42,8 @@ fun CrochetViewport3D(
     modifier: Modifier = Modifier,
     yarnColor: Color = StitchMeshTerracotta,
     roughness: Float = 0.9f,
-    cameraPreset: CameraPreset = CameraPreset.ISOMETRIC
+    cameraPreset: CameraPreset = CameraPreset.ISOMETRIC,
+    isWireframe: Boolean = false
 ) {
     val modelViewerRef = remember { arrayOfNulls<ModelViewer>(1) }
     val manipulatorRef = remember { arrayOfNulls<Manipulator>(1) }
@@ -50,12 +51,13 @@ fun CrochetViewport3D(
     val lightEntitiesRef = remember { arrayOf(IntArray(3)) }
 
     // Generar binario GLB directo si hay geometría disponible
-    val glbBuffer: ByteBuffer? = remember(meshGeometry, yarnColor, roughness) {
+    val glbBuffer: ByteBuffer? = remember(meshGeometry, yarnColor, roughness, isWireframe) {
         if (meshGeometry != null && meshGeometry.vertexCount > 0 && meshGeometry.indices.isNotEmpty()) {
             GlbMeshBuilder.buildGlb(
                 mesh = meshGeometry,
                 yarnColor = yarnColor,
-                roughness = roughness
+                roughness = roughness,
+                isWireframe = isWireframe
             )
         } else {
             null

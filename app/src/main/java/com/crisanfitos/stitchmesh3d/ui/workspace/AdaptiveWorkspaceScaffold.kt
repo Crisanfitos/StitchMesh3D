@@ -150,7 +150,7 @@ fun AdaptiveWorkspaceScaffold(
     val viewportState by viewportViewModel.state.collectAsState()
     var isFullscreenViewport by remember { mutableStateOf(false) }
 
-    LaunchedEffect(rounds, hookSizeMm, yarnWeightName) {
+    LaunchedEffect(rounds, hookSizeMm, yarnWeightName, viewportState.currentPeelRound) {
         viewportViewModel.processIntent(
             ViewportIntent.UpdatePatternParameters(
                 totalRounds = rounds.size,
@@ -160,8 +160,13 @@ fun AdaptiveWorkspaceScaffold(
         )
 
         // Generación reactiva de malla 3D para las vueltas sintáctica y aritméticamente válidas
-        val validRounds = rounds.filter { it.isValid }
-        if (validRounds.isNotEmpty()) {
+        val allValidRounds = rounds.filter { it.isValid }
+        val effectiveRounds = if (viewportState.currentPeelRound in 1..allValidRounds.size) {
+            allValidRounds.take(viewportState.currentPeelRound)
+        } else {
+            allValidRounds
+        }
+        if (effectiveRounds.isNotEmpty()) {
             try {
                 val gauge = YarnGaugeStandard(
                     id = 1,
@@ -174,7 +179,7 @@ fun AdaptiveWorkspaceScaffold(
                 )
                 val ringProfiles = ArrayList<RingProfile>()
                 var prevRing: RingProfile? = null
-                for ((idx, r) in validRounds.withIndex()) {
+                for ((idx, r) in effectiveRounds.withIndex()) {
                     val parsed = CrochetParser.parse(r.rawInstruction)
                     val stitches = parsed.ast?.flatten()?.map { it.stitchType } ?: emptyList()
                     if (stitches.isNotEmpty()) {

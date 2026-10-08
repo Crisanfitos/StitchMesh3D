@@ -31,10 +31,31 @@ object GlbMeshBuilder {
     fun buildGlb(
         mesh: MeshGeometry,
         yarnColor: Color = Color(0xFFE06D53),
-        roughness: Float = 0.9f
+        roughness: Float = 0.9f,
+        isWireframe: Boolean = false
     ): ByteBuffer {
         val vertexCount = mesh.vertexCount
-        val indexCount = mesh.indices.size
+
+        // Si es modo alambre (wireframe), descomponer triángulos en aristas (glTF LINES: 2 vértices por segmento)
+        val indicesList = if (isWireframe && mesh.indices.isNotEmpty()) {
+            val lineIndices = ShortArray(mesh.indices.size * 2)
+            var outIdx = 0
+            for (i in 0 until (mesh.indices.size / 3)) {
+                val a = mesh.indices[i * 3]
+                val b = mesh.indices[i * 3 + 1]
+                val c = mesh.indices[i * 3 + 2]
+                lineIndices[outIdx++] = a
+                lineIndices[outIdx++] = b
+                lineIndices[outIdx++] = b
+                lineIndices[outIdx++] = c
+                lineIndices[outIdx++] = c
+                lineIndices[outIdx++] = a
+            }
+            lineIndices
+        } else {
+            mesh.indices
+        }
+        val indexCount = indicesList.size
 
         // Calcular límites de bounding box para el accessor POSITION
         var minX = Float.MAX_VALUE
@@ -75,10 +96,14 @@ object GlbMeshBuilder {
         val indOffset = posByteLength + normByteLength
         val totalBinLength = indOffset + indByteLength
 
-        // Color normalizado RGBA
-        val r = yarnColor.red
-        val g = yarnColor.green
-        val b = yarnColor.blue
+        // Color normalizado RGBA: si es wireframe, usar color técnico SageGreen (#52A474)
+        val effectiveColor = if (isWireframe) Color(0xFF52A474) else yarnColor
+        val r = effectiveColor.red
+        val g = effectiveColor.green
+        val b = effectiveColor.blue
+
+        // Modo de primitiva: 1 (LINES) para wireframe, 4 (TRIANGLES) para superficie sólida
+        val primitiveMode = if (isWireframe) 1 else 4
 
         // Construir JSON metadata de glTF 2.0
         val jsonString = """
@@ -119,7 +144,7 @@ object GlbMeshBuilder {
           },
           "indices": 2,
           "material": 0,
-          "mode": 4
+          "mode": $primitiveMode
         }
       ]
     }
@@ -220,7 +245,7 @@ object GlbMeshBuilder {
 
         // Payload binario: INDICES (Unsigned Short)
         for (i in 0 until indexCount) {
-            byteBuffer.putShort(mesh.indices[i])
+            byteBuffer.putShort(indicesList[i])
         }
 
         // Rellenar padding binario con ceros (0x00)

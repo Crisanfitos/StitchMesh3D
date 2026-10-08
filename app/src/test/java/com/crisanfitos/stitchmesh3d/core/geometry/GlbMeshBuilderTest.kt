@@ -95,4 +95,39 @@ class GlbMeshBuilderTest {
         assertEquals(0x46546C67, magic)
         assertEquals(2, version)
     }
+
+    @Test
+    fun `buildGlb with wireframe mode generates LINES primitive mode and doubled edge indices`() {
+        val ring1 = RingProfileGenerator.generateRing(
+            roundIndex = 1,
+            stitches = List(6) { StitchType.SingleCrochet },
+            gaugeStandard = standard
+        )
+        val ring2 = RingProfileGenerator.generateRing(
+            roundIndex = 2,
+            stitches = List(12) { StitchType.SingleCrochet },
+            gaugeStandard = standard,
+            previousRing = ring1
+        )
+        val mesh = AdaptiveTessellator.tessellate(listOf(ring1, ring2), includePolarCap = true)
+
+        val buffer = GlbMeshBuilder.buildGlb(
+            mesh = mesh,
+            isWireframe = true
+        )
+
+        val jsonLength = buffer.getInt(12)
+        val jsonBytes = ByteArray(jsonLength)
+        buffer.position(20)
+        buffer.get(jsonBytes)
+        val jsonStr = String(jsonBytes, Charsets.UTF_8)
+
+        assertTrue("Debe declarar modo 1 (LINES) en las primitivas", jsonStr.contains("\"mode\": 1"))
+        val expectedWireframeIndexCount = mesh.indices.size * 2
+        assertTrue("El accessor de indices debe tener el doble de indices", jsonStr.contains("\"count\": $expectedWireframeIndexCount"))
+
+        val binHeaderOffset = 20 + jsonLength
+        val binLength = buffer.getInt(binHeaderOffset)
+        assertEquals("El chunk binario debe alinearse a múltiplo de 4", 0, binLength % 4)
+    }
 }
