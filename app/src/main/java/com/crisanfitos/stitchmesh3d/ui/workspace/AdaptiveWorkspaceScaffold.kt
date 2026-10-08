@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -58,6 +59,8 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceBorder
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceContainer
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceHigh
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
+import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetQuickKeyboard
+import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetTokenFormatter
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextDisabled
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
@@ -95,6 +98,9 @@ fun AdaptiveWorkspaceScaffold(
     onInstructionChanged: (roundId: String, newInstruction: String) -> Unit,
     onAddRound: () -> Unit,
     modifier: Modifier = Modifier,
+    selectedRoundId: String? = null,
+    onRoundSelected: ((String) -> Unit)? = null,
+    showQuickKeyboard: Boolean = true,
     onDeleteRound: ((roundId: String) -> Unit)? = null,
     onAddPart: (() -> Unit)? = null,
     onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null,
@@ -102,6 +108,28 @@ fun AdaptiveWorkspaceScaffold(
     onExportClick: (() -> Unit)? = null,
     viewportContent: (@Composable () -> Unit)? = null
 ) {
+    var internalSelectedRoundId by remember(rounds.firstOrNull()?.id) {
+        mutableStateOf(selectedRoundId ?: rounds.lastOrNull()?.id)
+    }
+    val activeRoundId = selectedRoundId ?: internalSelectedRoundId
+    var isKeyboardVisible by remember { mutableStateOf(showQuickKeyboard) }
+
+    fun handleToken(token: String) {
+        val target = rounds.firstOrNull { it.id == activeRoundId } ?: rounds.lastOrNull()
+        if (target != null) {
+            val updated = CrochetTokenFormatter.insertToken(target.rawInstruction, token)
+            onInstructionChanged(target.id, updated)
+        }
+    }
+
+    fun handleBackspace() {
+        val target = rounds.firstOrNull { it.id == activeRoundId } ?: rounds.lastOrNull()
+        if (target != null) {
+            val updated = CrochetTokenFormatter.deleteLastChar(target.rawInstruction)
+            onInstructionChanged(target.id, updated)
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = StitchMeshNeutralDark,
@@ -142,12 +170,29 @@ fun AdaptiveWorkspaceScaffold(
 
                         RoundEditorPane(
                             rounds = rounds,
+                            activeRoundId = activeRoundId,
+                            onRoundSelected = { id ->
+                                internalSelectedRoundId = id
+                                onRoundSelected?.invoke(id)
+                            },
                             onInstructionChanged = onInstructionChanged,
                             onAddRound = onAddRound,
                             onDeleteRound = onDeleteRound,
                             onApplySuggestion = onApplySuggestion,
                             modifier = Modifier.weight(1f)
                         )
+
+                        // Teclado virtual contextual de crochet
+                        if (isKeyboardVisible) {
+                            CrochetQuickKeyboard(
+                                onTokenInserted = { handleToken(it) },
+                                onBackspace = { handleBackspace() },
+                                onEnter = onAddRound,
+                                onClose = { isKeyboardVisible = false }
+                            )
+                        } else {
+                            KeyboardOpenToggle(onClick = { isKeyboardVisible = true })
+                        }
                     }
 
                     // Divisor vertical CAD de 1dp
@@ -264,12 +309,28 @@ fun AdaptiveWorkspaceScaffold(
 
                                     RoundEditorPane(
                                         rounds = rounds,
+                                        activeRoundId = activeRoundId,
+                                        onRoundSelected = { id ->
+                                            internalSelectedRoundId = id
+                                            onRoundSelected?.invoke(id)
+                                        },
                                         onInstructionChanged = onInstructionChanged,
                                         onAddRound = onAddRound,
                                         onDeleteRound = onDeleteRound,
                                         onApplySuggestion = onApplySuggestion,
                                         modifier = Modifier.weight(1f)
                                     )
+
+                                    if (isKeyboardVisible) {
+                                        CrochetQuickKeyboard(
+                                            onTokenInserted = { handleToken(it) },
+                                            onBackspace = { handleBackspace() },
+                                            onEnter = onAddRound,
+                                            onClose = { isKeyboardVisible = false }
+                                        )
+                                    } else {
+                                        KeyboardOpenToggle(onClick = { isKeyboardVisible = true })
+                                    }
                                 }
                             }
                             WorkspaceMobileTab.VIEWPORT_3D -> {
@@ -295,6 +356,8 @@ fun AdaptiveWorkspaceScaffold(
 @Composable
 private fun RoundEditorPane(
     rounds: List<RoundItemUiModel>,
+    activeRoundId: String?,
+    onRoundSelected: (String) -> Unit,
     onInstructionChanged: (roundId: String, newInstruction: String) -> Unit,
     onAddRound: () -> Unit,
     modifier: Modifier = Modifier,
@@ -313,9 +376,12 @@ private fun RoundEditorPane(
         ) { round ->
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 RoundItemRow(
-                    round = round,
+                    round = round.copy(isHighlighted = (round.id == activeRoundId)),
                     onInstructionChanged = { newText ->
                         onInstructionChanged(round.id, newText)
+                    },
+                    onRowClicked = {
+                        onRoundSelected(round.id)
                     },
                     onDeleteRound = if (onDeleteRound != null) {
                         { onDeleteRound(round.id) }
@@ -433,6 +499,37 @@ private fun DefaultViewportPlaceholder() {
                 )
             }
         }
+    }
+}
+
+/**
+ * Barra inferior minimalista para abrir el teclado rápido cuando ha sido ocultado.
+ */
+@Composable
+private fun KeyboardOpenToggle(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
+            .background(StitchMeshSurfaceContainer)
+            .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Keyboard,
+            contentDescription = "Abrir teclado de crochet",
+            tint = StitchMeshTerracotta,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Abrir Teclado de Crochet",
+            style = CrochetTypography.tokenBadge,
+            color = StitchMeshTextPrimary
+        )
     }
 }
 
