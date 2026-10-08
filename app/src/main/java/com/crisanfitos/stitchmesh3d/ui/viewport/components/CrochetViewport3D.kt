@@ -66,12 +66,18 @@ fun CrochetViewport3D(
 
     LaunchedEffect(glbBuffer) {
         val viewer = modelViewerRef[0] ?: return@LaunchedEffect
+        val manipulator = manipulatorRef[0]
         if (glbBuffer != null) {
             try {
                 glbBuffer.rewind()
+                // Preservar la orientación y zoom actual de cámara para evitar saltos o parpadeos (RF-3.5)
+                val currentCameraBookmark = manipulator?.currentBookmark
                 viewer.destroyModel()
                 viewer.loadModelGlb(glbBuffer)
                 viewer.transformToUnitCube()
+                if (currentCameraBookmark != null) {
+                    manipulator.jumpToBookmark(currentCameraBookmark)
+                }
             } catch (t: Throwable) {
                 t.printStackTrace()
             }
