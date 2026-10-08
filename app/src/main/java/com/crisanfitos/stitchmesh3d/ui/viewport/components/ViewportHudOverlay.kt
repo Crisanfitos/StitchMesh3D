@@ -42,18 +42,39 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshYarnGold
 
 /**
- * Modelo de datos para las cotas dimensionales métricas proyectadas (mm).
+ * Modelo de datos para las cotas dimensionales métricas proyectadas (mm y cm).
  */
 data class ViewportDimensionsUiModel(
     val widthMm: Float,
     val heightMm: Float,
     val depthMm: Float
 ) {
+    val maxDiameterMm: Float get() = maxOf(widthMm, depthMm)
+
     /**
-     * Formato requerido: '124 mm × 98 mm × 110 mm'
+     * Formato requerido en milímetros: '124 mm × 98 mm × 110 mm'
      */
     fun formattedDimensions(): String {
         return "${widthMm.toInt()} mm × ${heightMm.toInt()} mm × ${depthMm.toInt()} mm"
+    }
+
+    /**
+     * Formato en centímetros: '12.4 cm × 9.8 cm × 11.0 cm'
+     */
+    fun formattedDimensionsCm(): String {
+        return "%.1f cm × %.1f cm × %.1f cm".format(
+            java.util.Locale.US,
+            widthMm / 10f,
+            heightMm / 10f,
+            depthMm / 10f
+        )
+    }
+
+    /**
+     * Formato simplificado de cota: 'Ø 124 mm · H 98 mm'
+     */
+    fun formattedDiameterAndHeight(): String {
+        return "Ø ${maxDiameterMm.toInt()} mm · H ${heightMm.toInt()} mm"
     }
 }
 
@@ -81,6 +102,10 @@ fun ViewportHudOverlay(
     onCameraPresetSelected: (CameraPreset) -> Unit,
     modifier: Modifier = Modifier,
     isFullscreen: Boolean = false,
+    showDimensionCallouts: Boolean = true,
+    useCentimeters: Boolean = false,
+    onToggleDimensionCallouts: (() -> Unit)? = null,
+    onToggleUnitSystem: (() -> Unit)? = null,
     onToggleFullscreen: (() -> Unit)? = null,
     onBackClick: (() -> Unit)? = null
 ) {
@@ -89,6 +114,14 @@ fun ViewportHudOverlay(
             .fillMaxSize()
             .padding(12.dp)
     ) {
+        // Líneas de cota proyectadas sobre el canvas 3D (CAD Callouts)
+        DimensionalCalloutsOverlay(
+            dimensions = dimensions,
+            useCentimeters = useCentimeters,
+            visible = showDimensionCallouts,
+            onToggleUnit = onToggleUnitSystem
+        )
+
         // Esquina superior izquierda: Cotas métricas y telemetría
         Column(
             modifier = Modifier.align(Alignment.TopStart),
@@ -130,9 +163,10 @@ fun ViewportHudOverlay(
                     .background(StitchMeshSurfaceContainer.copy(alpha = 0.90f))
                     .border(
                         width = 1.dp,
-                        color = StitchMeshSurfaceBorder,
+                        color = if (showDimensionCallouts) StitchMeshTerracotta.copy(alpha = 0.5f) else StitchMeshSurfaceBorder,
                         shape = RoundedCornerShape(10.dp)
                     )
+                    .then(if (onToggleUnitSystem != null) Modifier.clickable(onClick = onToggleUnitSystem) else Modifier)
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
                 Row(
@@ -146,7 +180,7 @@ fun ViewportHudOverlay(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = dimensions.formattedDimensions(),
+                        text = if (useCentimeters) dimensions.formattedDimensionsCm() else dimensions.formattedDimensions(),
                         style = CrochetTypography.matrixValue,
                         color = StitchMeshTextPrimary,
                         fontWeight = FontWeight.Bold,
@@ -176,7 +210,7 @@ fun ViewportHudOverlay(
             }
         }
 
-        // Esquina superior derecha: Orientación de cámara y botón fullscreen
+        // Esquina superior derecha: Orientación de cámara, botón cotas y botón fullscreen
         Row(
             modifier = Modifier.align(Alignment.TopEnd),
             verticalAlignment = Alignment.CenterVertically,
@@ -186,6 +220,38 @@ fun ViewportHudOverlay(
                 selectedPreset = selectedCameraPreset,
                 onPresetSelected = onCameraPresetSelected
             )
+
+            // Conmutador de cotas CAD
+            if (onToggleDimensionCallouts != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (showDimensionCallouts) {
+                                StitchMeshTerracotta.copy(alpha = 0.20f)
+                            } else {
+                                StitchMeshSurfaceContainer.copy(alpha = 0.90f)
+                            }
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = if (showDimensionCallouts) StitchMeshTerracotta else StitchMeshSurfaceBorder,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                ) {
+                    IconButton(
+                        onClick = onToggleDimensionCallouts,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SquareFoot,
+                            contentDescription = if (showDimensionCallouts) "Ocultar cotas" else "Mostrar cotas",
+                            tint = if (showDimensionCallouts) StitchMeshTerracotta else StitchMeshTextSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
 
             if (onToggleFullscreen != null) {
                 Box(

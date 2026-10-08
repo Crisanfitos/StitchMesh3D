@@ -88,6 +88,43 @@ data class MeshGeometry(
         return shortBuffer
     }
 
+    /**
+     * Calcula la envolvente tridimensional (Bounding Box) de la geometría en milímetros (RF-2.2, RF-3.3).
+     */
+    fun computeBoundingBox(): BoundingBox3D {
+        if (vertexCount == 0 || vertexPositions.isEmpty()) {
+            return BoundingBox3D(0f, 0f, 0f, 0f, 0f, 0f)
+        }
+        var minX = Float.POSITIVE_INFINITY
+        var maxX = Float.NEGATIVE_INFINITY
+        var minY = Float.POSITIVE_INFINITY
+        var maxY = Float.NEGATIVE_INFINITY
+        var minZ = Float.POSITIVE_INFINITY
+        var maxZ = Float.NEGATIVE_INFINITY
+
+        for (i in 0 until vertexCount) {
+            val idx = i * 3
+            val x = vertexPositions[idx]
+            val y = vertexPositions[idx + 1]
+            val z = vertexPositions[idx + 2]
+
+            if (x < minX) minX = x
+            if (x > maxX) maxX = x
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+            if (z < minZ) minZ = z
+            if (z > maxZ) maxZ = z
+        }
+
+        return BoundingBox3D(
+            minX = if (minX.isInfinite()) 0f else minX,
+            maxX = if (maxX.isInfinite()) 0f else maxX,
+            minY = if (minY.isInfinite()) 0f else minY,
+            maxY = if (maxY.isInfinite()) 0f else maxY,
+            minZ = if (minZ.isInfinite()) 0f else minZ,
+            maxZ = if (maxZ.isInfinite()) 0f else maxZ
+        )
+    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -114,3 +151,28 @@ data class MeshGeometry(
     }
 }
 
+/**
+ * Envolvente tridimensional ortogonal alineada a los ejes (AABB) en milímetros.
+ *
+ * @property minX Coordenada mínima en eje transversal X (mm).
+ * @property maxX Coordenada máxima en eje transversal X (mm).
+ * @property minY Coordenada mínima en eje sagital Y (mm).
+ * @property maxY Coordenada máxima en eje sagital Y (mm).
+ * @property minZ Coordenada mínima en eje vertical Z (mm).
+ * @property maxZ Coordenada máxima en eje vertical Z (mm).
+ */
+data class BoundingBox3D(
+    val minX: Float,
+    val maxX: Float,
+    val minY: Float,
+    val maxY: Float,
+    val minZ: Float,
+    val maxZ: Float
+) {
+    val widthMm: Float get() = (maxX - minX).coerceAtLeast(0f)
+    val depthMm: Float get() = (maxY - minY).coerceAtLeast(0f)
+    val heightMm: Float get() = (maxZ - minZ).coerceAtLeast(0f)
+    val maxDiameterMm: Float get() = maxOf(widthMm, depthMm)
+
+    val isEmpty: Boolean get() = widthMm == 0f && depthMm == 0f && heightMm == 0f
+}

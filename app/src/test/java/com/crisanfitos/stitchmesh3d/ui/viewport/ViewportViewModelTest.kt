@@ -161,4 +161,51 @@ class ViewportViewModelTest {
         assertEquals(4, state.telemetry.polygonCount)
         assertEquals(6, state.telemetry.vertexCount)
     }
+
+    @Test
+    fun `toggle dimension callouts toggles visibility accurately`() {
+        assertTrue(viewModel.state.value.showDimensionCallouts)
+
+        viewModel.processIntent(ViewportIntent.ToggleDimensionCallouts)
+        assertFalse(viewModel.state.value.showDimensionCallouts)
+
+        viewModel.processIntent(ViewportIntent.ToggleDimensionCallouts)
+        assertTrue(viewModel.state.value.showDimensionCallouts)
+    }
+
+    @Test
+    fun `toggle unit system toggles between millimeters and centimeters`() {
+        assertFalse(viewModel.state.value.useCentimeters)
+
+        viewModel.processIntent(ViewportIntent.ToggleUnitSystem)
+        assertTrue(viewModel.state.value.useCentimeters)
+
+        viewModel.processIntent(ViewportIntent.ToggleUnitSystem)
+        assertFalse(viewModel.state.value.useCentimeters)
+    }
+
+    @Test
+    fun `set mesh geometry with non empty vertices updates metric dimensions from bounding box`() {
+        // Malla con dimensiones conocidas: X [-20, 20] -> 40 mm, Y [-15, 15] -> 30 mm, Z [0, 50] -> 50 mm
+        val positions = floatArrayOf(
+            -20f, -15f, 0f,
+            20f, 15f, 50f,
+            0f, 0f, 25f
+        )
+        val mesh = com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry(
+            vertexPositions = positions,
+            indices = shortArrayOf(0, 1, 2),
+            vertexCount = 3,
+            triangleCount = 1
+        )
+
+        viewModel.processIntent(ViewportIntent.SetMeshGeometry(mesh))
+
+        val state = viewModel.state.value
+        assertEquals(40f, state.dimensions.widthMm, 0.001f)
+        assertEquals(50f, state.dimensions.heightMm, 0.001f)
+        assertEquals(30f, state.dimensions.depthMm, 0.001f)
+        assertEquals("40 mm × 50 mm × 30 mm", state.dimensions.formattedDimensions())
+    }
 }
+

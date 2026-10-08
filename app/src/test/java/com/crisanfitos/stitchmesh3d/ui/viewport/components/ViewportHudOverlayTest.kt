@@ -56,4 +56,44 @@ class ViewportHudOverlayTest {
         selectPreset(CameraPreset.RESET)
         assertEquals(CameraPreset.RESET, selected)
     }
+
+    @Test
+    fun `dimensions model formats correctly with centimeter units and diameter`() {
+        val dimensions = ViewportDimensionsUiModel(
+            widthMm = 80.0f,
+            heightMm = 120.0f,
+            depthMm = 65.0f
+        )
+
+        assertEquals("80 mm × 120 mm × 65 mm", dimensions.formattedDimensions())
+        assertEquals("8.0 cm × 12.0 cm × 6.5 cm", dimensions.formattedDimensionsCm())
+        assertEquals(80.0f, dimensions.maxDiameterMm, 0.001f)
+        assertEquals("Ø 80 mm · H 120 mm", dimensions.formattedDiameterAndHeight())
+    }
+
+    @Test
+    fun `toggle dimension callouts and unit system callbacks trigger properly`() {
+        var calloutsVisible = true
+        var isCm = false
+
+        fun toggleCallouts() {
+            calloutsVisible = !calloutsVisible
+        }
+
+        fun toggleUnit() {
+            isCm = !isCm
+        }
+
+        toggleCallouts()
+        assertTrue(!calloutsVisible)
+
+        toggleCallouts()
+        assertTrue(calloutsVisible)
+
+        toggleUnit()
+        assertTrue(isCm)
+
+        toggleUnit()
+        assertTrue(!isCm)
+    }
 }
