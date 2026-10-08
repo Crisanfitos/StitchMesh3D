@@ -73,6 +73,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import com.crisanfitos.stitchmesh3d.ui.dashboard.DashboardScreen
 import com.crisanfitos.stitchmesh3d.ui.dashboard.DashboardViewModel
+import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
+import com.crisanfitos.stitchmesh3d.ui.workspace.AdaptiveWorkspaceScaffold
+import com.crisanfitos.stitchmesh3d.ui.workspace.ProjectPartUiModel
+import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -108,6 +112,125 @@ fun StitchMeshWorkbenchScreen(
     projectId: String? = null,
     onBackToDashboard: (() -> Unit)? = null
 ) {
+    var parts by remember {
+        mutableStateOf(
+            listOf(
+                ProjectPartUiModel("p1", "Cabeza", 3, "#E06D53"),
+                ProjectPartUiModel("p2", "Cuerpo", 1, "#F2C94C"),
+                ProjectPartUiModel("p3", "Orejas (x2)", 1, "#52A474")
+            )
+        )
+    }
+    var selectedPartId by remember { mutableStateOf("p1") }
+
+    var rounds by remember {
+        mutableStateOf(
+            listOf(
+                RoundItemUiModel(
+                    id = "r1",
+                    roundNumber = 1,
+                    rawInstruction = "AM 6 (6)",
+                    producedStitches = 6,
+                    consumedStitches = 0,
+                    declaredStitches = 6,
+                    isValid = true
+                ),
+                RoundItemUiModel(
+                    id = "r2",
+                    roundNumber = 2,
+                    rawInstruction = "6 aum (12)",
+                    producedStitches = 12,
+                    consumedStitches = 6,
+                    declaredStitches = 12,
+                    isValid = true
+                ),
+                RoundItemUiModel(
+                    id = "r3",
+                    roundNumber = 3,
+                    rawInstruction = "[1 pb, 1 aum] * 5 (15)",
+                    producedStitches = 15,
+                    consumedStitches = 10,
+                    declaredStitches = 15,
+                    isValid = false,
+                    errorMessage = "Consume 10 pts pero la base disponible es 12 (-2 pb faltantes)"
+                )
+            )
+        )
+    }
+
+    fun recalculateRounds(updated: List<RoundItemUiModel>): List<RoundItemUiModel> {
+        var prevStitches = 0
+        return updated.mapIndexed { index, round ->
+            val result = ArithmeticValidator.validateRound(
+                rawLine = round.rawInstruction,
+                previousRoundStitches = if (index == 0) 0 else prevStitches
+            )
+            val newRound = round.copy(
+                producedStitches = result.totalProduced,
+                consumedStitches = result.totalConsumed,
+                declaredStitches = result.declaredCount,
+                isValid = result.isValid,
+                errorMessage = if (result.isValid) null else result.message
+            )
+            if (result.isValid) {
+                prevStitches = result.totalProduced
+            }
+            newRound
+        }
+    }
+
+    val hasErrors = rounds.any { !it.isValid }
+    val validationStatus = if (hasErrors) LinterValidationStatus.HAS_ERRORS else LinterValidationStatus.VALID
+
+    AdaptiveWorkspaceScaffold(
+        projectTitle = if (projectId != null) "Proyecto ${projectId.take(8)}" else "Zorro Amigurumi",
+        hookSizeMm = 3.5f,
+        yarnWeightName = "#4 Worsted",
+        parts = parts,
+        selectedPartId = selectedPartId,
+        rounds = rounds,
+        validationStatus = validationStatus,
+        onBackClick = { onBackToDashboard?.invoke() },
+        onPartSelected = { selectedPartId = it },
+        onInstructionChanged = { roundId, newText ->
+            rounds = recalculateRounds(
+                rounds.map { if (it.id == roundId) it.copy(rawInstruction = newText) else it }
+            )
+        },
+        onApplySuggestion = { roundId, suggestion ->
+            rounds = recalculateRounds(
+                rounds.map { if (it.id == roundId) it.copy(rawInstruction = suggestion.correctedText) else it }
+            )
+        },
+        onAddRound = {
+            val nextNumber = (rounds.maxOfOrNull { it.roundNumber } ?: 0) + 1
+            val lastRoundProduced = rounds.lastOrNull()?.producedStitches ?: 6
+            val newRound = RoundItemUiModel(
+                id = "r$nextNumber",
+                roundNumber = nextNumber,
+                rawInstruction = "$lastRoundProduced pb ($lastRoundProduced)",
+                producedStitches = lastRoundProduced,
+                consumedStitches = lastRoundProduced,
+                declaredStitches = lastRoundProduced,
+                isValid = true
+            )
+            rounds = recalculateRounds(rounds + newRound)
+        },
+        onDeleteRound = { roundId ->
+            if (rounds.size > 1) {
+                rounds = recalculateRounds(rounds.filter { it.id != roundId })
+            }
+        },
+        onAddPart = {
+            val nextPartNum = parts.size + 1
+            parts = parts + ProjectPartUiModel("p$nextPartNum", "Parte $nextPartNum", 0, "#E06D53")
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun LegacyInteractiveWorkbenchDemo() {
     var selectedStitch by remember { mutableStateOf<StitchType>(StitchType.SingleCrochet) }
     var formulaText by remember { mutableStateOf("6 pb, 1 aum, 2 pb") }
 
@@ -133,7 +256,7 @@ fun StitchMeshWorkbenchScreen(
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
-                                    text = if (projectId != null) "PROYECTO: ${projectId.take(8)}" else "CAD ENGINE",
+                                    text = "CAD ENGINE",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = StitchMeshOnAccent
@@ -145,17 +268,6 @@ fun StitchMeshWorkbenchScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = StitchMeshTextSecondary
                         )
-                    }
-                },
-                navigationIcon = {
-                    if (onBackToDashboard != null) {
-                        IconButton(onClick = onBackToDashboard) {
-                            Icon(
-                                imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Volver a la Biblioteca",
-                                tint = StitchMeshTextPrimary
-                            )
-                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
