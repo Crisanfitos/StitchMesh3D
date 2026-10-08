@@ -20,6 +20,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.google.android.filament.EntityManager
 import com.google.android.filament.LightManager
 import com.google.android.filament.Skybox
+import com.google.android.filament.utils.Manipulator
 import com.google.android.filament.utils.ModelViewer
 import java.nio.ByteBuffer
 
@@ -30,7 +31,8 @@ import java.nio.ByteBuffer
  * - Material textil mate de lana (Wool PBR: roughness ~ 0.9, metallic = 0.0)
  * - Iluminación multicapa: Sol principal direccional + luz de relleno fría + rebote suave
  * - Fondo neutro oscuro (#121316)
- * - Controles táctiles de órbita 360°, zoom y paneo mediante ModelViewer
+ * - Controles táctiles de órbita 360°, zoom por pellizco y paneo (RF-3.3)
+ * - Presets de cámara y botón de reset (Iso, Frontal, Lateral, Superior)
  * - Ciclo de vida sincronizado con Choreographer y Compose DisposableEffect
  */
 @SuppressLint("ClickableViewAccessibility")
@@ -39,9 +41,11 @@ fun CrochetViewport3D(
     meshGeometry: MeshGeometry?,
     modifier: Modifier = Modifier,
     yarnColor: Color = StitchMeshTerracotta,
-    roughness: Float = 0.9f
+    roughness: Float = 0.9f,
+    cameraPreset: CameraPreset = CameraPreset.ISOMETRIC
 ) {
     val modelViewerRef = remember { arrayOfNulls<ModelViewer>(1) }
+    val manipulatorRef = remember { arrayOfNulls<Manipulator>(1) }
     val choreographerCallbackRef = remember { arrayOfNulls<Choreographer.FrameCallback>(1) }
     val lightEntitiesRef = remember { arrayOf(IntArray(3)) }
 
@@ -74,6 +78,35 @@ fun CrochetViewport3D(
         }
     }
 
+    // Respuesta reactiva a presets y reset de cámara (RF-3.3)
+    LaunchedEffect(cameraPreset) {
+        val manipulator = manipulatorRef[0] ?: return@LaunchedEffect
+        try {
+            when (cameraPreset) {
+                CameraPreset.RESET, CameraPreset.ISOMETRIC -> {
+                    manipulator.jumpToBookmark(manipulator.homeBookmark)
+                }
+                CameraPreset.FRONT -> {
+                    manipulator.jumpToBookmark(manipulator.homeBookmark)
+                }
+                CameraPreset.SIDE -> {
+                    manipulator.jumpToBookmark(manipulator.homeBookmark)
+                    manipulator.grabBegin(0, 0, false)
+                    manipulator.grabUpdate(250, 0)
+                    manipulator.grabEnd()
+                }
+                CameraPreset.TOP -> {
+                    manipulator.jumpToBookmark(manipulator.homeBookmark)
+                    manipulator.grabBegin(0, 0, false)
+                    manipulator.grabUpdate(0, -250)
+                    manipulator.grabEnd()
+                }
+            }
+        } catch (_: Throwable) {
+            // Protección ante manipulador no disponible en frame actual
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -84,10 +117,22 @@ fun CrochetViewport3D(
             factory = { context ->
                 SurfaceView(context).apply {
                     try {
-                        val viewer = ModelViewer(this)
+                        val manipulator = Manipulator.Builder()
+                            .targetPosition(0f, 0f, 0f)
+                            .orbitHomePosition(0f, 0f, 3.5f)
+                            .orbitSpeed(0.005f, 0.005f)
+                            .zoomSpeed(0.01f)
+                            .panning(true)
+                            .build(Manipulator.Mode.ORBIT)
+                        manipulatorRef[0] = manipulator
+
+                        val viewer = ModelViewer(
+                            surfaceView = this,
+                            manipulator = manipulator
+                        )
                         modelViewerRef[0] = viewer
 
-                        // Habilitar interacción táctil de órbita, zoom y paneo
+                        // Habilitar interacción táctil de órbita 360°, zoom y paneo
                         setOnTouchListener(viewer)
 
                         // Configurar color de fondo neutro oscuro (#121316 -> R: 0.07, G: 0.074, B: 0.086)
@@ -173,6 +218,7 @@ fun CrochetViewport3D(
                     viewer.destroyModel()
                 }
                 modelViewerRef[0] = null
+                manipulatorRef[0] = null
             }
         )
     }
@@ -198,6 +244,7 @@ fun CrochetViewport3D(
                 viewer.destroyModel()
             }
             modelViewerRef[0] = null
+            manipulatorRef[0] = null
         }
     }
 }

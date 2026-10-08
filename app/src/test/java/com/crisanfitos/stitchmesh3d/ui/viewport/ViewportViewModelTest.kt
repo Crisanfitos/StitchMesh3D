@@ -128,4 +128,37 @@ class ViewportViewModelTest {
         assertTrue(state.dimensions.heightMm > 30f)
         assertTrue(state.telemetry.polygonCount > 500)
     }
+
+    @Test
+    fun `reset camera returns orbit, zoom and pan to initial defaults`() {
+        viewModel.processIntent(ViewportIntent.UpdateOrbit(30f, 40f))
+        viewModel.processIntent(ViewportIntent.UpdateZoom(2.5f))
+        viewModel.processIntent(ViewportIntent.UpdatePan(Offset(50f, -50f)))
+
+        viewModel.processIntent(ViewportIntent.ResetCamera)
+
+        val state = viewModel.state.value
+        assertEquals(CameraPreset.ISOMETRIC, state.selectedCameraPreset)
+        assertEquals(45f, state.orbitYaw)
+        assertEquals(30f, state.orbitPitch)
+        assertEquals(1.0f, state.zoomScale)
+        assertEquals(Offset.Zero, state.panOffset)
+    }
+
+    @Test
+    fun `set mesh geometry updates state geometry and telemetry counts`() {
+        val dummyMesh = com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry(
+            vertexPositions = FloatArray(18),
+            indices = ShortArray(12),
+            vertexCount = 6,
+            triangleCount = 4,
+            vertexNormals = FloatArray(18)
+        )
+        viewModel.processIntent(ViewportIntent.SetMeshGeometry(dummyMesh))
+
+        val state = viewModel.state.value
+        assertEquals(dummyMesh, state.meshGeometry)
+        assertEquals(4, state.telemetry.polygonCount)
+        assertEquals(6, state.telemetry.vertexCount)
+    }
 }
