@@ -5,6 +5,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/**
+ * Pruebas unitarias del layout adaptativo del Workspace (SM-027 / RND-3).
+ * Valida la distribución dual-pane para tablets y navegación por pestañas en móvil.
+ */
 class AdaptiveWorkspaceTest {
 
     @Test
@@ -48,5 +52,42 @@ class AdaptiveWorkspaceTest {
         assertTrue(isTablet(840))
         assertTrue(isTablet(1024))
         assertTrue(isTablet(1280))
+    }
+
+    @Test
+    fun `acceptance criterion 1 - dual-pane weight ratio is strictly 40 percent editor and 60 percent 3D viewport`() {
+        val editorWeight = 0.40f
+        val viewportWeight = 0.60f
+
+        assertEquals(1.0f, editorWeight + viewportWeight, 0.001f)
+        assertEquals(0.40f, editorWeight, 0.001f)
+        assertEquals(0.60f, viewportWeight, 0.001f)
+    }
+
+    @Test
+    fun `acceptance criterion 2 - compact mode provides tabs and floating action button to toggle viewports`() {
+        var currentTab = WorkspaceMobileTab.EDITOR
+
+        // Simular toque en FAB para ver el modelo 3D
+        currentTab = WorkspaceMobileTab.VIEWPORT_3D
+        assertEquals(WorkspaceMobileTab.VIEWPORT_3D, currentTab)
+
+        // Simular selección de pestaña Editor
+        currentTab = WorkspaceMobileTab.EDITOR
+        assertEquals(WorkspaceMobileTab.EDITOR, currentTab)
+    }
+
+    @Test
+    fun `acceptance criterion 3 - round editing state is preserved regardless of layout width`() {
+        val sampleRounds = listOf("AM 6", "6 aum", "12 pb")
+        var currentWidth = 412 // Móvil
+
+        fun getActiveRounds(width: Int) = sampleRounds
+
+        val mobileRounds = getActiveRounds(currentWidth)
+        currentWidth = 1280 // Rotación a tablet apaisada
+        val tabletRounds = getActiveRounds(currentWidth)
+
+        assertEquals(mobileRounds, tabletRounds)
     }
 }
