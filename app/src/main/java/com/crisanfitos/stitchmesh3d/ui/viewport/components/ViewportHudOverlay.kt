@@ -2,6 +2,7 @@ package com.crisanfitos.stitchmesh3d.ui.viewport.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.SquareFoot
@@ -79,7 +81,8 @@ fun ViewportHudOverlay(
     onCameraPresetSelected: (CameraPreset) -> Unit,
     modifier: Modifier = Modifier,
     isFullscreen: Boolean = false,
-    onToggleFullscreen: (() -> Unit)? = null
+    onToggleFullscreen: (() -> Unit)? = null,
+    onBackClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = modifier
@@ -91,6 +94,35 @@ fun ViewportHudOverlay(
             modifier = Modifier.align(Alignment.TopStart),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            // Botón de retorno al editor si está activo (modo fullscreen)
+            if (onBackClick != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(StitchMeshSurfaceContainer.copy(alpha = 0.90f))
+                        .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
+                        .clickable(onClick = onBackClick)
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver al editor",
+                            tint = StitchMeshTerracotta,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Volver al Editor",
+                            style = CrochetTypography.tokenBadge,
+                            color = StitchMeshTextPrimary
+                        )
+                    }
+                }
+            }
+
             // Ficha de cotas dimensionales
             Box(
                 modifier = Modifier
