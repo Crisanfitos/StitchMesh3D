@@ -89,6 +89,7 @@ fun CrochetViewportScreen(
             CrochetViewport3D(
                 meshGeometry = state.meshGeometry,
                 cameraPreset = state.selectedCameraPreset,
+                isWireframe = state.isWireframe,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
