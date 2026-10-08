@@ -61,6 +61,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceHigh
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetQuickKeyboard
 import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetTokenFormatter
+import com.crisanfitos.stitchmesh3d.ui.viewport.components.PeelSliderBar
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextDisabled
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
@@ -213,7 +214,10 @@ fun AdaptiveWorkspaceScaffold(
                         if (viewportContent != null) {
                             viewportContent()
                         } else {
-                            DefaultViewportPlaceholder()
+                            DefaultViewportPlaceholder(
+                                roundCount = rounds.size,
+                                activeRoundIndex = rounds.size
+                            )
                         }
                     }
                 }
@@ -338,7 +342,10 @@ fun AdaptiveWorkspaceScaffold(
                                     if (viewportContent != null) {
                                         viewportContent()
                                     } else {
-                                        DefaultViewportPlaceholder()
+                                        DefaultViewportPlaceholder(
+                                            roundCount = rounds.size,
+                                            activeRoundIndex = rounds.size
+                                        )
                                     }
                                 }
                             }
@@ -440,20 +447,27 @@ private fun RoundEditorPane(
 }
 
 /**
- * Placeholder estilizado para el Visor 3D en tanto se enlaza el motor nativo de Filament.
+ * Placeholder estilizado para el Visor 3D con integración del PeelSliderBar interactivo.
  */
 @Composable
-private fun DefaultViewportPlaceholder() {
+private fun DefaultViewportPlaceholder(
+    roundCount: Int = 3,
+    activeRoundIndex: Int = 3,
+    onRoundSelected: ((Int) -> Unit)? = null
+) {
+    var peelRound by remember(roundCount) { mutableIntStateOf(activeRoundIndex) }
+    var isWireframe by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(StitchMeshSurfaceContainer)
-            .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(12.dp)),
-        contentAlignment = Alignment.Center
+            .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(12.dp))
     ) {
         Column(
+            modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -481,7 +495,7 @@ private fun DefaultViewportPlaceholder() {
             )
 
             Text(
-                text = "Motor Filament PBR (Malla en tiempo real)",
+                text = if (isWireframe) "Modo Alambre CAD (Wireframe)" else "Motor Filament PBR (Malla de lana)",
                 style = MaterialTheme.typography.bodySmall,
                 color = StitchMeshTextSecondary
             )
@@ -493,11 +507,29 @@ private fun DefaultViewportPlaceholder() {
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
-                    text = "60 FPS · Wireframe / Lana PBR · Peel Slider",
+                    text = "Capa activa: $peelRound / $roundCount · 60 FPS",
                     fontSize = 11.sp,
                     color = StitchMeshYarnGold
                 )
             }
+        }
+
+        // Overlay inferior: PeelSliderBar interactiva
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(12.dp)
+        ) {
+            PeelSliderBar(
+                currentRound = peelRound,
+                totalRounds = roundCount,
+                onRoundSelected = {
+                    peelRound = it
+                    onRoundSelected?.invoke(it)
+                },
+                isWireframe = isWireframe,
+                onWireframeChange = { isWireframe = it }
+            )
         }
     }
 }
