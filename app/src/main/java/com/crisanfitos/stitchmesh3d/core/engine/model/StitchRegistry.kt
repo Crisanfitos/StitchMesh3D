@@ -24,7 +24,19 @@ object StitchRegistry {
         StitchType.HdcDecrease,
         StitchType.DcDecrease,
         StitchType.TripleDecrease,
-        StitchType.Skip
+        StitchType.Skip,
+        // Post stitches (TRD §2.3.B)
+        StitchType.FrontPostSingleCrochet,
+        StitchType.FrontPostHalfDoubleCrochet,
+        StitchType.FrontPostDoubleCrochet,
+        StitchType.BackPostSingleCrochet,
+        StitchType.BackPostHalfDoubleCrochet,
+        StitchType.BackPostDoubleCrochet,
+        // Volumetric stitches (TRD §2.3.C)
+        StitchType.BobbleStitch,
+        StitchType.PopcornStitch,
+        StitchType.PuffStitch,
+        StitchType.ReverseSingleCrochet
     )
 
     private val lookupMap: Map<String, StitchType> = buildMap {
@@ -47,7 +59,8 @@ object StitchRegistry {
 
     /**
      * Resuelve una abreviatura o símbolo de texto al [StitchType] correspondiente.
-     * Soporta indistintamente mayúsculas/minúsculas y notación dinámica de Anillo Mágico (ej. "AM [6]", "mr 6").
+     * Soporta indistintamente mayúsculas/minúsculas, modificadores topológicos (BLO/FLO)
+     * y notación dinámica de Anillo Mágico (ej. "AM [6]", "mr 6").
      */
     fun resolve(symbol: String): StitchType? {
         val trimmed = symbol.trim()
@@ -58,7 +71,19 @@ object StitchRegistry {
         // 1. Coincidencia directa con puntadas estáticas
         lookupMap[normalized]?.let { return it }
 
-        // 2. Detección de Anillo Mágico dinámico: AM [6], MR [6], AM 6, MR 8...
+        // 2. Modificadores topológicos de prefijo: BLO / FLO (ej. "blo pb", "flo sc")
+        if (normalized.startsWith("blo ") || normalized.startsWith("blo-")) {
+            val remainder = normalized.substring(4).trim()
+            val base = resolve(remainder)
+            if (base != null) return base.withTopology(TopologyFlag.BLO)
+        }
+        if (normalized.startsWith("flo ") || normalized.startsWith("flo-")) {
+            val remainder = normalized.substring(4).trim()
+            val base = resolve(remainder)
+            if (base != null) return base.withTopology(TopologyFlag.FLO)
+        }
+
+        // 3. Detección de Anillo Mágico dinámico: AM [6], MR [6], AM 6, MR 8...
         val mrMatch = magicRingRegex.matchEntire(trimmed.lowercase(Locale.ROOT))
         if (mrMatch != null) {
             val count = mrMatch.groupValues[1].toIntOrNull()

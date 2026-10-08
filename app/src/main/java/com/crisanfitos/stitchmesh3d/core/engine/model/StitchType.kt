@@ -27,6 +27,24 @@ sealed interface StitchType {
     /** Δr_rel: Desplazamiento radial relativo. */
     val deltaRRel: Double get() = definition.deltaRRel
 
+    /** Desplazamiento normal tridimensional relativo (extrusión volumétrica). */
+    val normalDisplacement: Double get() = definition.normalDisplacement
+
+    /** Banderas topológicas de lazo o relieve. */
+    val topologyFlags: Set<TopologyFlag> get() = definition.topologyFlags
+
+    /**
+     * Aplica modificadores topológicos (ej. BLO, FLO) a este punto manteniendo invariantes C y P.
+     */
+    fun withTopology(vararg flags: TopologyFlag): StitchType {
+        val newFlags = flags.toSet()
+        if (newFlags == definition.topologyFlags) return this
+        return ModifiedStitch(
+            baseStitch = this,
+            flags = newFlags
+        )
+    }
+
     // --- PUNTOS ELEMENTALES (TRD §2.2) ---
 
     /** Cadeneta / Chain (cad / c / ch) */
@@ -186,5 +204,145 @@ sealed interface StitchType {
         override val definition = StitchDefinition(consumedStitches = 1, producedStitches = 0, hRel = 0.0, wRel = 1.0, deltaRRel = 0.0)
         override val spanishAbbreviations = listOf("saltar", "sk")
         override val englishAbbreviations = listOf("sk", "skip")
+    }
+
+    // --- PUNTOS EN RELIEVE POR POSTE (TRD §2.3.B) ---
+
+    /** Front Post Single Crochet (FPsc / Relieve Delantero Punto Bajo) */
+    data object FrontPostSingleCrochet : StitchType {
+        override val technicalName = "Relieve Delantero Punto Bajo / FPsc"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 1.0, wRel = 1.0, deltaRRel = 0.3,
+            topologyFlags = setOf(TopologyFlag.FRONT_POST)
+        )
+        override val spanishAbbreviations = listOf("fpsc", "rpd-pb")
+        override val englishAbbreviations = listOf("fpsc")
+    }
+
+    /** Front Post Half Double Crochet (FPhdc / Relieve Delantero PMA) */
+    data object FrontPostHalfDoubleCrochet : StitchType {
+        override val technicalName = "Relieve Delantero Punto Medio Alto / FPhdc"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 1.4, wRel = 1.1, deltaRRel = 0.3,
+            topologyFlags = setOf(TopologyFlag.FRONT_POST)
+        )
+        override val spanishAbbreviations = listOf("fphdc", "rpd-pma")
+        override val englishAbbreviations = listOf("fphdc")
+    }
+
+    /** Front Post Double Crochet (FPdc / Relieve Delantero Punto Alto) */
+    data object FrontPostDoubleCrochet : StitchType {
+        override val technicalName = "Relieve Delantero Punto Alto / FPdc"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 2.0, wRel = 1.2, deltaRRel = 0.3,
+            topologyFlags = setOf(TopologyFlag.FRONT_POST)
+        )
+        override val spanishAbbreviations = listOf("fpdc", "rpd-pa")
+        override val englishAbbreviations = listOf("fpdc")
+    }
+
+    /** Back Post Single Crochet (BPsc / Relieve Trasero Punto Bajo) */
+    data object BackPostSingleCrochet : StitchType {
+        override val technicalName = "Relieve Trasero Punto Bajo / BPsc"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 1.0, wRel = 1.0, deltaRRel = -0.3,
+            topologyFlags = setOf(TopologyFlag.BACK_POST)
+        )
+        override val spanishAbbreviations = listOf("bpsc", "rpt-pb")
+        override val englishAbbreviations = listOf("bpsc")
+    }
+
+    /** Back Post Half Double Crochet (BPhdc / Relieve Trasero PMA) */
+    data object BackPostHalfDoubleCrochet : StitchType {
+        override val technicalName = "Relieve Trasero Punto Medio Alto / BPhdc"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 1.4, wRel = 1.1, deltaRRel = -0.3,
+            topologyFlags = setOf(TopologyFlag.BACK_POST)
+        )
+        override val spanishAbbreviations = listOf("bphdc", "rpt-pma")
+        override val englishAbbreviations = listOf("bphdc")
+    }
+
+    /** Back Post Double Crochet (BPdc / Relieve Trasero Punto Alto) */
+    data object BackPostDoubleCrochet : StitchType {
+        override val technicalName = "Relieve Trasero Punto Alto / BPdc"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 2.0, wRel = 1.2, deltaRRel = -0.3,
+            topologyFlags = setOf(TopologyFlag.BACK_POST)
+        )
+        override val spanishAbbreviations = listOf("bpdc", "rpt-pa")
+        override val englishAbbreviations = listOf("bpdc")
+    }
+
+    // --- PUNTOS CON RELIEVE VOLUMÉTRICO 3D (TRD §2.3.C) ---
+
+    /** Punto Garbanzo / Bobble Stitch (bo / garbanzo) - C=1, P=1, Δn = +1.5 */
+    data object BobbleStitch : StitchType {
+        override val technicalName = "Punto Garbanzo / Bobble Stitch"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 1.0, wRel = 1.4, deltaRRel = 1.5,
+            normalDisplacement = 1.5
+        )
+        override val spanishAbbreviations = listOf("garbanzo", "bo", "pto garbanzo")
+        override val englishAbbreviations = listOf("bo", "bobble")
+    }
+
+    /** Punto Palomita / Popcorn Stitch (pop / palomita) - C=1, P=1, Δn = +2.2 */
+    data object PopcornStitch : StitchType {
+        override val technicalName = "Punto Palomita / Popcorn Stitch"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 1.2, wRel = 1.6, deltaRRel = 2.2,
+            normalDisplacement = 2.2
+        )
+        override val spanishAbbreviations = listOf("palomita", "pop", "pto palomita")
+        override val englishAbbreviations = listOf("pop", "popcorn")
+    }
+
+    /** Punto Piña / Puff Stitch (puff / piña) - C=1, P=1, Δn = +1.0 */
+    data object PuffStitch : StitchType {
+        override val technicalName = "Punto Piña / Puff Stitch"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 1.0, wRel = 1.3, deltaRRel = 1.0,
+            normalDisplacement = 1.0
+        )
+        override val spanishAbbreviations = listOf("piña", "puff", "pto piña")
+        override val englishAbbreviations = listOf("puff")
+    }
+
+    /** Punto Cangrejo / Reverse Single Crochet (cangrejo / crab) - C=1, P=1 */
+    data object ReverseSingleCrochet : StitchType {
+        override val technicalName = "Punto Cangrejo / Reverse Single Crochet"
+        override val definition = StitchDefinition(
+            consumedStitches = 1, producedStitches = 1, hRel = 0.8, wRel = 1.0, deltaRRel = 0.0
+        )
+        override val spanishAbbreviations = listOf("cangrejo", "pto cangrejo")
+        override val englishAbbreviations = listOf("crab", "reverse sc")
+    }
+
+    // --- PUNTADA CON MODIFICADOR TOPOLÓGICO (BLO / FLO / ETC) ---
+
+    /**
+     * Representa cualquier puntada base envuelta con modificadores topológicos (ej. BLO, FLO).
+     * Mantiene invariantes C y P intactos.
+     */
+    data class ModifiedStitch(
+        val baseStitch: StitchType,
+        val flags: Set<TopologyFlag>
+    ) : StitchType {
+        override val technicalName: String = run {
+            val prefix = flags.filter { it != TopologyFlag.NORMAL }.joinToString("-") { it.name }
+            if (prefix.isNotEmpty()) "$prefix ${baseStitch.technicalName}" else baseStitch.technicalName
+        }
+        override val definition: StitchDefinition = baseStitch.definition.copy(
+            topologyFlags = flags
+        )
+        override val spanishAbbreviations: List<String> = run {
+            val flagStr = flags.joinToString(" ") { it.name.lowercase() }
+            baseStitch.spanishAbbreviations.map { "$flagStr $it" }
+        }
+        override val englishAbbreviations: List<String> = run {
+            val flagStr = flags.joinToString(" ") { it.name.lowercase() }
+            baseStitch.englishAbbreviations.map { "$flagStr $it" }
+        }
     }
 }

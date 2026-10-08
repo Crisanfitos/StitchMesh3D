@@ -17,6 +17,7 @@ data class StitchDefinition(
     val hRel: Double,
     val wRel: Double,
     val deltaRRel: Double = 0.0,
+    val normalDisplacement: Double = 0.0,
     val topologyFlags: Set<TopologyFlag> = setOf(TopologyFlag.NORMAL)
 ) {
     init {

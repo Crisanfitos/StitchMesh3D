@@ -58,7 +58,7 @@ class StitchTypeTest {
     @Test
     fun `all TRD section 2_2 standard stitches have valid delta and non-negative parameters`() {
         val allStitches = StitchRegistry.allStandardStitches()
-        assertEquals(17, allStitches.size)
+        assertEquals(27, allStitches.size)
 
         for (stitch in allStitches) {
             assertTrue("Consumed stitches must be >= 0", stitch.consumedStitches >= 0)
