@@ -57,6 +57,7 @@ import com.crisanfitos.stitchmesh3d.ui.viewport.components.PeelSliderBar
 import com.crisanfitos.stitchmesh3d.ui.viewport.components.ViewportDimensionsUiModel
 import com.crisanfitos.stitchmesh3d.ui.viewport.components.ViewportHudOverlay
 import com.crisanfitos.stitchmesh3d.ui.viewport.components.ViewportTelemetryUiModel
+import com.crisanfitos.stitchmesh3d.ui.viewport.components.CrochetViewport3D
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -83,59 +84,54 @@ fun CrochetViewportScreen(
             .fillMaxSize()
             .background(StitchMeshNeutralDark)
     ) {
-        // Lienzo CAD interactivo con detección de gestos táctiles
-        CadInteractiveCanvas(
-            state = state,
-            onOrbitRotate = { dy, dp -> onIntent(ViewportIntent.UpdateOrbit(dy, dp)) },
-            onZoomChange = { zoom -> onIntent(ViewportIntent.UpdateZoom(zoom)) },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // Overlay central con indicador de capa e información de motor
-        Column(
-            modifier = Modifier.align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(StitchMeshSurfaceHigh.copy(alpha = 0.85f))
-                    .border(1.dp, StitchMeshTerracotta.copy(alpha = 0.5f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ViewInAr,
-                    contentDescription = "Visor 3D Filament",
-                    tint = StitchMeshTerracotta,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-
-            Text(
-                text = "VISOR 3D PARAMÉTRICO",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = StitchMeshTextPrimary
+        if (state.meshGeometry != null) {
+            // Renderizado nativo 3D con Google Filament y shader Wool PBR
+            CrochetViewport3D(
+                meshGeometry = state.meshGeometry,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // Lienzo CAD 2D preliminar si no hay malla triangulada
+            CadInteractiveCanvas(
+                state = state,
+                onOrbitRotate = { dy, dp -> onIntent(ViewportIntent.UpdateOrbit(dy, dp)) },
+                onZoomChange = { zoom -> onIntent(ViewportIntent.UpdateZoom(zoom)) },
+                modifier = Modifier.fillMaxSize()
             )
 
-            Text(
-                text = if (state.isWireframe) "Modo Alambre CAD (Wireframe)" else "Motor Filament PBR (Malla de lana)",
-                style = MaterialTheme.typography.bodySmall,
-                color = StitchMeshTextSecondary
-            )
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(StitchMeshSurfaceHigh)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            // Overlay central informativo para estado sin malla
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(StitchMeshSurfaceHigh.copy(alpha = 0.85f))
+                        .border(1.dp, StitchMeshTerracotta.copy(alpha = 0.5f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ViewInAr,
+                        contentDescription = "Visor 3D Filament",
+                        tint = StitchMeshTerracotta,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
                 Text(
-                    text = "Capa activa: ${state.currentPeelRound} / ${state.totalRounds} · Vista: ${state.selectedCameraPreset.label}",
-                    fontSize = 11.sp,
-                    color = StitchMeshYarnGold
+                    text = "VISOR 3D PARAMÉTRICO",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = StitchMeshTextPrimary
+                )
+
+                Text(
+                    text = if (state.isWireframe) "Modo Alambre CAD (Wireframe)" else "Motor Filament PBR (Malla de lana)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = StitchMeshTextSecondary
                 )
             }
         }

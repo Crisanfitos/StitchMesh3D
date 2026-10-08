@@ -27,13 +27,17 @@ data class ViewportState(
     val orbitYaw: Float = 45f,
     val orbitPitch: Float = 30f,
     val zoomScale: Float = 1.0f,
-    val panOffset: Offset = Offset.Zero
+    val panOffset: Offset = Offset.Zero,
+    val meshGeometry: com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry? = null
 ) : ViewState
 
 /**
  * Intenciones de usuario en el visor 3D paramétrico.
  */
 sealed interface ViewportIntent : ViewIntent {
+    data class SetMeshGeometry(
+        val meshGeometry: com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry?
+    ) : ViewportIntent
     data class SelectPeelRound(val round: Int) : ViewportIntent
     data class ToggleWireframe(val isWireframe: Boolean) : ViewportIntent
     data class SelectCameraPreset(val preset: CameraPreset) : ViewportIntent
