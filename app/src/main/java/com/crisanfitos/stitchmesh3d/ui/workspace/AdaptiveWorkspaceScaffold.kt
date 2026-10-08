@@ -118,11 +118,28 @@ fun AdaptiveWorkspaceScaffold(
     onExportClick: (() -> Unit)? = null,
     viewportContent: (@Composable () -> Unit)? = null
 ) {
-    var internalSelectedRoundId by remember(rounds.firstOrNull()?.id) {
+    var internalSelectedRoundId by remember {
         mutableStateOf(selectedRoundId ?: rounds.lastOrNull()?.id)
     }
     val activeRoundId = selectedRoundId ?: internalSelectedRoundId
     var isKeyboardVisible by remember { mutableStateOf(showQuickKeyboard) }
+
+    LaunchedEffect(selectedRoundId) {
+        if (selectedRoundId != null) {
+            internalSelectedRoundId = selectedRoundId
+        }
+    }
+
+    var previousRoundCount by remember { mutableIntStateOf(rounds.size) }
+    LaunchedEffect(rounds.size) {
+        if (rounds.size > previousRoundCount) {
+            rounds.lastOrNull()?.let { newlyAdded ->
+                internalSelectedRoundId = newlyAdded.id
+                onRoundSelected?.invoke(newlyAdded.id)
+            }
+        }
+        previousRoundCount = rounds.size
+    }
 
     val viewportViewModel = remember { ViewportViewModel() }
     val viewportState by viewportViewModel.state.collectAsState()
@@ -668,9 +685,9 @@ private fun AdaptiveWorkspaceTabletPreview() {
             ),
             selectedPartId = "p1",
             rounds = listOf(
-                RoundItemUiModel("r1", 1, "AM 6 (6)", 6, 0, 6, true),
-                RoundItemUiModel("r2", 2, "6 aum (12)", 12, 6, 12, true),
-                RoundItemUiModel("r3", 3, "[1 pb, 1 aum] * 5 (15)", 15, 10, 15, false, "Faltan 2 puntos base")
+                RoundItemUiModel("r1", 1, "AM 6", 6, 0, null, true),
+                RoundItemUiModel("r2", 2, "6 aum", 12, 6, null, true),
+                RoundItemUiModel("r3", 3, "[1 pb, 1 aum] * 5", 15, 10, null, false, "Faltan 2 puntos base")
             ),
             validationStatus = LinterValidationStatus.HAS_ERRORS,
             onBackClick = {},
@@ -694,8 +711,8 @@ private fun AdaptiveWorkspacePhonePreview() {
             ),
             selectedPartId = "p1",
             rounds = listOf(
-                RoundItemUiModel("r1", 1, "AM 6 (6)", 6, 0, 6, true),
-                RoundItemUiModel("r2", 2, "6 aum (12)", 12, 6, 12, true)
+                RoundItemUiModel("r1", 1, "AM 6", 6, 0, null, true),
+                RoundItemUiModel("r2", 2, "6 aum", 12, 6, null, true)
             ),
             validationStatus = LinterValidationStatus.VALID,
             onBackClick = {},

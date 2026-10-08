@@ -129,28 +129,28 @@ fun StitchMeshWorkbenchScreen(
                 RoundItemUiModel(
                     id = "r1",
                     roundNumber = 1,
-                    rawInstruction = "AM 6 (6)",
+                    rawInstruction = "AM 6",
                     producedStitches = 6,
                     consumedStitches = 0,
-                    declaredStitches = 6,
+                    declaredStitches = null,
                     isValid = true
                 ),
                 RoundItemUiModel(
                     id = "r2",
                     roundNumber = 2,
-                    rawInstruction = "6 aum (12)",
+                    rawInstruction = "6 aum",
                     producedStitches = 12,
                     consumedStitches = 6,
-                    declaredStitches = 12,
+                    declaredStitches = null,
                     isValid = true
                 ),
                 RoundItemUiModel(
                     id = "r3",
                     roundNumber = 3,
-                    rawInstruction = "[1 pb, 1 aum] * 5 (15)",
+                    rawInstruction = "[1 pb, 1 aum] * 5",
                     producedStitches = 15,
                     consumedStitches = 10,
-                    declaredStitches = 15,
+                    declaredStitches = null,
                     isValid = false,
                     errorMessage = "Consume 10 pts pero la base disponible es 12 (-2 pb faltantes)"
                 )
@@ -208,10 +208,10 @@ fun StitchMeshWorkbenchScreen(
             val newRound = RoundItemUiModel(
                 id = "r$nextNumber",
                 roundNumber = nextNumber,
-                rawInstruction = "$lastRoundProduced pb ($lastRoundProduced)",
+                rawInstruction = "$lastRoundProduced pb",
                 producedStitches = lastRoundProduced,
                 consumedStitches = lastRoundProduced,
-                declaredStitches = lastRoundProduced,
+                declaredStitches = null,
                 isValid = true
             )
             rounds = recalculateRounds(rounds + newRound)
