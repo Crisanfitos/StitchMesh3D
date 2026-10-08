@@ -2,6 +2,7 @@ package com.crisanfitos.stitchmesh3d.ui.dashboard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -351,6 +352,7 @@ private fun DashboardEmptyState(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .background(StitchMeshTerracotta)
+                        .clickable(onClick = onCreateProjectClick)
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
