@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
@@ -59,7 +61,8 @@ data class RoundItemUiModel(
     val declaredStitches: Int? = null,
     val isValid: Boolean = true,
     val errorMessage: String? = null,
-    val isHighlighted: Boolean = false
+    val isHighlighted: Boolean = false,
+    val colorHex: String? = null
 )
 
 /**
@@ -68,6 +71,7 @@ data class RoundItemUiModel(
  * Características principales:
  * - Rail visual lateral: SageGreen (válido), CoralRed (error sintáctico/invariante), SurfaceBorder (vacío).
  * - Identificador de vuelta monospace: V1..VN.
+ * - Chip selector de color de vuelta asignado a la hilera (TRD §2, RF-4.3).
  * - Campo de texto de fórmula con tipografía monoespaciada (JetBrains Mono).
  * - Debounce configurable (por defecto 90 ms) para no sobrecargar el linter durante la escritura rápida.
  * - Chip reactivo de puntos computados vs declarados.
@@ -78,6 +82,7 @@ fun RoundItemRow(
     onInstructionChanged: (String) -> Unit,
     modifier: Modifier = Modifier,
     onRowClicked: (() -> Unit)? = null,
+    onColorClick: (() -> Unit)? = null,
     onDeleteRound: (() -> Unit)? = null,
     debounceMs: Long = 90L,
     enabled: Boolean = true
@@ -153,6 +158,20 @@ fun RoundItemRow(
                         color = StitchMeshYarnGold
                     )
                 }
+
+                // Chip selector de color de vuelta (TRD §2, RF-4.3)
+                val swatchColor = round.colorHex?.let {
+                    runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
+                } ?: StitchMeshTerracotta
+
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(swatchColor)
+                        .border(1.dp, StitchMeshSurfaceBorder, CircleShape)
+                        .then(if (onColorClick != null) Modifier.clickable(onClick = onColorClick) else Modifier)
+                )
 
                 // Editor de texto de fórmula con debounce y tipografía monoespaciada
                 Box(
