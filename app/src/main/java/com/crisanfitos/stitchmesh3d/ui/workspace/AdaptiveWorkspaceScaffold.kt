@@ -118,6 +118,9 @@ fun AdaptiveWorkspaceScaffold(
     showQuickKeyboard: Boolean = true,
     onDeleteRound: ((roundId: String) -> Unit)? = null,
     onAddPart: (() -> Unit)? = null,
+    onRenamePart: ((String) -> Unit)? = null,
+    onDuplicatePart: ((String) -> Unit)? = null,
+    onDeletePart: ((String) -> Unit)? = null,
     onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null,
     onCalibrateTensionClick: (() -> Unit)? = null,
     onExportClick: (() -> Unit)? = null,
@@ -273,7 +276,10 @@ fun AdaptiveWorkspaceScaffold(
                             parts = parts,
                             selectedPartId = selectedPartId,
                             onPartSelected = onPartSelected,
-                            onAddPart = onAddPart
+                            onAddPart = onAddPart,
+                            onRenamePart = onRenamePart,
+                            onDuplicatePart = onDuplicatePart,
+                            onDeletePart = onDeletePart
                         )
 
                         RoundEditorPane(
@@ -422,7 +428,10 @@ fun AdaptiveWorkspaceScaffold(
                                         parts = parts,
                                         selectedPartId = selectedPartId,
                                         onPartSelected = onPartSelected,
-                                        onAddPart = onAddPart
+                                        onAddPart = onAddPart,
+                                        onRenamePart = onRenamePart,
+                                        onDuplicatePart = onDuplicatePart,
+                                        onDeletePart = onDeletePart
                                     )
 
                                     RoundEditorPane(

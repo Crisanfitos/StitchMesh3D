@@ -75,7 +75,7 @@ class WorkspaceViewModel @Inject constructor(
                         round
                     }
                 }
-                recalculateAndRebuildMesh(updatedRounds)
+                syncPartRoundsAndRebuild(updatedRounds)
             }
 
             is WorkspaceIntent.ChangeRoundColor -> {
@@ -86,7 +86,7 @@ class WorkspaceViewModel @Inject constructor(
                         round
                     }
                 }
-                _state.update { it.copy(rounds = updatedRounds) }
+                syncPartRoundsAndRebuild(updatedRounds)
             }
 
             is WorkspaceIntent.SelectRound -> {
@@ -115,7 +115,7 @@ class WorkspaceViewModel @Inject constructor(
                         currentPeelRound = nextNumber
                     )
                 }
-                recalculateAndRebuildMesh(newRounds)
+                syncPartRoundsAndRebuild(newRounds)
                 viewModelScope.launch {
                     _effects.emit(WorkspaceEffect.ScrollToRound(newRoundId))
                 }
@@ -131,7 +131,7 @@ class WorkspaceViewModel @Inject constructor(
                         _state.value.selectedRoundId
                     }
                     _state.update { it.copy(selectedRoundId = newActiveId) }
-                    recalculateAndRebuildMesh(filtered)
+                    syncPartRoundsAndRebuild(filtered)
                 }
             }
 
@@ -143,22 +143,258 @@ class WorkspaceViewModel @Inject constructor(
                         round
                     }
                 }
-                recalculateAndRebuildMesh(updatedRounds)
+                syncPartRoundsAndRebuild(updatedRounds)
             }
 
             is WorkspaceIntent.SelectPart -> {
-                _state.update { it.copy(selectedPartId = intent.partId) }
+                val targetPartId = intent.partId
+                if (targetPartId == _state.value.selectedPartId) return
+                val currentPartId = _state.value.selectedPartId
+                val currentMap = _state.value.roundsByPartId.toMutableMap()
+                currentMap[currentPartId] = _state.value.rounds
+                val targetRounds = currentMap[targetPartId] ?: listOf(
+                    RoundItemUiModel(
+                        id = "${targetPartId}_r1",
+                        roundNumber = 1,
+                        rawInstruction = "AM 6",
+                        producedStitches = 6,
+                        consumedStitches = 0,
+                        declaredStitches = null,
+                        isValid = true,
+                        colorHex = _state.value.parts.find { it.id == targetPartId }?.colorHex ?: "#E06D53"
+                    )
+                )
+                currentMap[targetPartId] = targetRounds
+
+                _state.update {
+                    it.copy(
+                        selectedPartId = targetPartId,
+                        roundsByPartId = currentMap,
+                        selectedRoundId = targetRounds.lastOrNull()?.id,
+                        currentPeelRound = targetRounds.size
+                    )
+                }
+                recalculateAndRebuildMesh(targetRounds)
             }
 
             is WorkspaceIntent.AddPart -> {
+                processIntent(WorkspaceIntent.OpenAddPartDialog)
+            }
+
+            is WorkspaceIntent.OpenAddPartDialog -> {
+                _state.update { it.copy(showAddPartDialog = true, partActionError = null) }
+            }
+
+            is WorkspaceIntent.DismissPartDialogs -> {
+                _state.update {
+                    it.copy(
+                        showAddPartDialog = false,
+                        showRenamePartDialog = false,
+                        showDeletePartDialog = false,
+                        partActionTarget = null,
+                        partActionError = null
+                    )
+                }
+            }
+
+            is WorkspaceIntent.CreatePart -> {
+                val trimmed = intent.name.trim()
                 val currentParts = _state.value.parts
-                val nextNum = currentParts.size + 1
-                val newPart = ProjectPartUiModel("p$nextNum", "Parte $nextNum", 0, "#E06D53")
+                if (trimmed.isEmpty()) {
+                    _state.update { it.copy(partActionError = "El nombre no puede estar vacío") }
+                    return
+                }
+                if (currentParts.any { it.name.equals(trimmed, ignoreCase = true) }) {
+                    _state.update { it.copy(partActionError = "Ya existe una pieza con el nombre '$trimmed'") }
+                    return
+                }
+                val nextNum = (currentParts.maxOfOrNull { it.id.removePrefix("p").toIntOrNull() ?: 0 } ?: 0) + 1
+                val newPartId = "p$nextNum"
+                val initialRound = RoundItemUiModel(
+                    id = "${newPartId}_r1",
+                    roundNumber = 1,
+                    rawInstruction = "AM 6",
+                    producedStitches = 6,
+                    consumedStitches = 0,
+                    declaredStitches = null,
+                    isValid = true,
+                    colorHex = intent.colorHex
+                )
+                val newPart = ProjectPartUiModel(
+                    id = newPartId,
+                    name = trimmed,
+                    roundCount = 1,
+                    colorHex = intent.colorHex,
+                    isValid = true,
+                    sortOrder = currentParts.size
+                )
+                val currentMap = _state.value.roundsByPartId.toMutableMap()
+                currentMap[_state.value.selectedPartId] = _state.value.rounds
+                currentMap[newPartId] = listOf(initialRound)
+
                 _state.update {
                     it.copy(
                         parts = currentParts + newPart,
-                        selectedPartId = newPart.id
+                        selectedPartId = newPartId,
+                        roundsByPartId = currentMap,
+                        selectedRoundId = initialRound.id,
+                        currentPeelRound = 1,
+                        showAddPartDialog = false,
+                        partActionError = null
                     )
+                }
+                recalculateAndRebuildMesh(listOf(initialRound))
+                viewModelScope.launch {
+                    _effects.emit(WorkspaceEffect.ShowToast("Pieza '$trimmed' creada"))
+                }
+            }
+
+            is WorkspaceIntent.OpenRenamePartDialog -> {
+                val target = _state.value.parts.find { it.id == intent.partId }
+                if (target != null) {
+                    _state.update {
+                        it.copy(
+                            showRenamePartDialog = true,
+                            partActionTarget = target,
+                            partActionError = null
+                        )
+                    }
+                }
+            }
+
+            is WorkspaceIntent.ConfirmRenamePart -> {
+                val trimmed = intent.newName.trim()
+                val currentParts = _state.value.parts
+                if (trimmed.isEmpty()) {
+                    _state.update { it.copy(partActionError = "El nombre no puede estar vacío") }
+                    return
+                }
+                if (currentParts.any { it.id != intent.partId && it.name.equals(trimmed, ignoreCase = true) }) {
+                    _state.update { it.copy(partActionError = "Ya existe otra pieza con el nombre '$trimmed'") }
+                    return
+                }
+                val updatedParts = currentParts.map {
+                    if (it.id == intent.partId) it.copy(name = trimmed) else it
+                }
+                _state.update {
+                    it.copy(
+                        parts = updatedParts,
+                        showRenamePartDialog = false,
+                        partActionTarget = null,
+                        partActionError = null
+                    )
+                }
+                viewModelScope.launch {
+                    _effects.emit(WorkspaceEffect.ShowToast("Pieza renombrada a '$trimmed'"))
+                }
+            }
+
+            is WorkspaceIntent.DuplicatePart -> {
+                val source = _state.value.parts.find { it.id == intent.partId } ?: return
+                val currentMap = _state.value.roundsByPartId.toMutableMap()
+                currentMap[_state.value.selectedPartId] = _state.value.rounds
+                val sourceRounds = currentMap[intent.partId] ?: emptyList()
+
+                var dupName = "${source.name} (Copia)"
+                var counter = 2
+                while (_state.value.parts.any { it.name.equals(dupName, ignoreCase = true) }) {
+                    dupName = "${source.name} (Copia $counter)"
+                    counter++
+                }
+
+                val nextNum = (_state.value.parts.maxOfOrNull { it.id.removePrefix("p").toIntOrNull() ?: 0 } ?: 0) + 1
+                val newPartId = "p$nextNum"
+                val clonedRounds = sourceRounds.map { r ->
+                    r.copy(id = "${newPartId}_r${r.roundNumber}")
+                }
+                val duplicatedPart = ProjectPartUiModel(
+                    id = newPartId,
+                    name = dupName,
+                    roundCount = clonedRounds.size,
+                    colorHex = source.colorHex,
+                    isValid = source.isValid,
+                    sortOrder = _state.value.parts.size
+                )
+                currentMap[newPartId] = clonedRounds
+
+                _state.update {
+                    it.copy(
+                        parts = it.parts + duplicatedPart,
+                        selectedPartId = newPartId,
+                        roundsByPartId = currentMap,
+                        selectedRoundId = clonedRounds.lastOrNull()?.id,
+                        currentPeelRound = clonedRounds.size
+                    )
+                }
+                recalculateAndRebuildMesh(clonedRounds)
+                viewModelScope.launch {
+                    _effects.emit(WorkspaceEffect.ShowToast("Pieza duplicada: '$dupName'"))
+                }
+            }
+
+            is WorkspaceIntent.OpenDeletePartDialog -> {
+                val target = _state.value.parts.find { it.id == intent.partId }
+                if (target != null) {
+                    if (_state.value.parts.size <= 1) {
+                        viewModelScope.launch {
+                            _effects.emit(WorkspaceEffect.ShowToast("No se puede eliminar la única pieza del proyecto"))
+                        }
+                    } else {
+                        _state.update {
+                            it.copy(
+                                showDeletePartDialog = true,
+                                partActionTarget = target
+                            )
+                        }
+                    }
+                }
+            }
+
+            is WorkspaceIntent.ConfirmDeletePart -> {
+                val currentParts = _state.value.parts
+                if (currentParts.size <= 1) {
+                    viewModelScope.launch {
+                        _effects.emit(WorkspaceEffect.ShowToast("No se puede eliminar la única pieza del proyecto"))
+                    }
+                    _state.update { it.copy(showDeletePartDialog = false, partActionTarget = null) }
+                    return
+                }
+                val remainingParts = currentParts.filter { it.id != intent.partId }
+                val currentMap = _state.value.roundsByPartId.toMutableMap()
+                currentMap.remove(intent.partId)
+
+                val newSelectedId = if (_state.value.selectedPartId == intent.partId) {
+                    remainingParts.first().id
+                } else {
+                    _state.value.selectedPartId
+                }
+                val newRounds = currentMap[newSelectedId] ?: emptyList()
+
+                _state.update {
+                    it.copy(
+                        parts = remainingParts,
+                        selectedPartId = newSelectedId,
+                        roundsByPartId = currentMap,
+                        selectedRoundId = newRounds.lastOrNull()?.id,
+                        currentPeelRound = newRounds.size,
+                        showDeletePartDialog = false,
+                        partActionTarget = null
+                    )
+                }
+                recalculateAndRebuildMesh(newRounds)
+                viewModelScope.launch {
+                    _effects.emit(WorkspaceEffect.ShowToast("Pieza eliminada"))
+                }
+            }
+
+            is WorkspaceIntent.ReorderPart -> {
+                val currentParts = _state.value.parts.toMutableList()
+                val index = currentParts.indexOfFirst { it.id == intent.partId }
+                if (index != -1 && intent.toIndex in currentParts.indices && index != intent.toIndex) {
+                    val item = currentParts.removeAt(index)
+                    currentParts.add(intent.toIndex, item)
+                    val reindexed = currentParts.mapIndexed { idx, p -> p.copy(sortOrder = idx) }
+                    _state.update { it.copy(parts = reindexed) }
                 }
             }
 
@@ -200,6 +436,25 @@ class WorkspaceViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun syncPartRoundsAndRebuild(
+        updatedRounds: List<RoundItemUiModel>,
+        peelLimit: Int? = null
+    ) {
+        val currentPartId = _state.value.selectedPartId
+        val updatedMap = _state.value.roundsByPartId.toMutableMap()
+        updatedMap[currentPartId] = updatedRounds
+        val updatedParts = _state.value.parts.map {
+            if (it.id == currentPartId) it.copy(roundCount = updatedRounds.size) else it
+        }
+        _state.update {
+            it.copy(
+                parts = updatedParts,
+                roundsByPartId = updatedMap
+            )
+        }
+        recalculateAndRebuildMesh(updatedRounds, peelLimit)
     }
 
     private fun recalculateAndRebuildMesh(
@@ -299,8 +554,16 @@ class WorkspaceViewModel @Inject constructor(
                 newMesh = lastValid
             }
 
-            _state.update {
-                it.copy(
+            _state.update { current ->
+                val currentPartId = current.selectedPartId
+                val updatedMap = current.roundsByPartId.toMutableMap()
+                updatedMap[currentPartId] = validatedRounds
+                val updatedParts = current.parts.map { p ->
+                    if (p.id == currentPartId) p.copy(roundCount = validatedRounds.size, isValid = !hasErrors) else p
+                }
+                current.copy(
+                    parts = updatedParts,
+                    roundsByPartId = updatedMap,
                     rounds = validatedRounds,
                     validationStatus = status,
                     inconsistencyCount = errorCount,
