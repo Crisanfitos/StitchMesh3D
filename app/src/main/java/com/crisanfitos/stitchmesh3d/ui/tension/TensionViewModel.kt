@@ -3,6 +3,7 @@ package com.crisanfitos.stitchmesh3d.ui.tension
 import androidx.lifecycle.viewModelScope
 import com.crisanfitos.stitchmesh3d.core.gauge.SwatchCalibrator
 import com.crisanfitos.stitchmesh3d.core.gauge.YarnGaugeRegistry
+import com.crisanfitos.stitchmesh3d.core.gauge.model.TensionCalibrationResult
 import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnGaugeStandard
 import com.crisanfitos.stitchmesh3d.core.mvi.BaseViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -97,9 +98,11 @@ class TensionViewModel @Inject constructor() :
 
         result.fold(
             onSuccess = { calibrationResult ->
+                val scaleComparison = computeScaleComparison(standard, calibrationResult)
                 setState {
                     copy(
                         calibrationResult = calibrationResult,
+                        scaleComparison = scaleComparison,
                         errorMessage = null
                     )
                 }
@@ -108,10 +111,83 @@ class TensionViewModel @Inject constructor() :
                 setState {
                     copy(
                         calibrationResult = null,
+                        scaleComparison = null,
                         errorMessage = error.localizedMessage ?: "Error al calibrar las medidas de la muestra"
                     )
                 }
             }
+        )
+    }
+
+    private fun computeScaleComparison(
+        standard: YarnGaugeStandard,
+        calibrationResult: TensionCalibrationResult
+    ): TensionScaleComparison {
+        val widthDev = calibrationResult.widthDeviationPercent
+        val heightDev = calibrationResult.heightDeviationPercent
+        val widthRatio = calibrationResult.customStandard.stitchWidthMm / standard.stitchWidthMm
+        val heightRatio = calibrationResult.customStandard.stitchHeightMm / standard.stitchHeightMm
+        val theoreticalVol = standard.unitVolumeMm3
+        val calibratedVol = calibrationResult.customStandard.unitVolumeMm3
+        val volumeDev = ((calibratedVol - theoreticalVol) / theoreticalVol) * 100f
+        val volumeRatio = calibratedVol / theoreticalVol
+
+        val diagnosis: TensionDiagnosis
+        val diagnosisSummary: String
+        val hookSuggestion: String?
+
+        when {
+            volumeDev > 5f -> {
+                diagnosis = TensionDiagnosis.LOOSE
+                val formatted = "%.1f".format(volumeDev)
+                diagnosisSummary = "+$formatted% de volumen por tensión holgada"
+                hookSuggestion = if (volumeDev > 15f) {
+                    val suggested = (standard.hookSizeMm - 0.5f).coerceAtLeast(1.5f)
+                    "Para mayor firmeza en amigurumis, prueba con aguja de ${suggested} mm."
+                } else null
+            }
+            volumeDev < -5f -> {
+                diagnosis = TensionDiagnosis.TIGHT
+                val formatted = "%.1f".format(volumeDev)
+                diagnosisSummary = "$formatted% de volumen por tensión apretada"
+                hookSuggestion = if (volumeDev < -15f) {
+                    val suggested = standard.hookSizeMm + 0.5f
+                    "Si el tejido resulta excesivamente rígido, prueba con aguja de ${suggested} mm."
+                } else null
+            }
+            else -> {
+                diagnosis = TensionDiagnosis.BALANCED
+                val sign = if (volumeDev >= 0f) "+" else ""
+                val formatted = "%.1f".format(volumeDev)
+                diagnosisSummary = "$sign$formatted% de volumen (tensión equilibrada)"
+                hookSuggestion = null
+            }
+        }
+
+        // Estimación de una pieza de muestra de referencia (ej. 30 puntos por 30 vueltas)
+        val refStitches = 30
+        val refRounds = 30
+        val theoreticalDims = Pair(
+            refStitches * standard.stitchWidthMm,
+            refRounds * standard.stitchHeightMm
+        )
+        val calibratedDims = Pair(
+            refStitches * calibrationResult.customStandard.stitchWidthMm,
+            refRounds * calibrationResult.customStandard.stitchHeightMm
+        )
+
+        return TensionScaleComparison(
+            widthDeviationPercent = widthDev,
+            heightDeviationPercent = heightDev,
+            volumeDeviationPercent = volumeDev,
+            widthScaleRatio = widthRatio,
+            heightScaleRatio = heightRatio,
+            volumeScaleRatio = volumeRatio,
+            diagnosis = diagnosis,
+            diagnosisSummary = diagnosisSummary,
+            hookSuggestion = hookSuggestion,
+            theoreticalDimensionsMm = theoreticalDims,
+            calibratedDimensionsMm = calibratedDims
         )
     }
 
@@ -130,3 +206,9 @@ class TensionViewModel @Inject constructor() :
         }
     }
 }
+
+/**
+ * Alias de compatibilidad semántica para el Calibrador Dimensional completo.
+ */
+typealias TensionCalibratorViewModel = TensionViewModel
+

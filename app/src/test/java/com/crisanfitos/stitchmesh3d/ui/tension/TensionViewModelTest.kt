@@ -106,4 +106,37 @@ class TensionViewModelTest {
 
         assertTrue(viewModel.state.value.isSaved)
     }
+
+    @Test
+    fun `scale comparison computes volume deviation and diagnosis correctly`() {
+        val std = YarnGaugeRegistry.DEFAULT_STANDARD
+        // Standard stitchesIn10Cm = 100 / 4.5 = 22, roundsIn10Cm = 100 / 5.0 = 20
+        viewModel.processIntent(TensionIntent.SelectStandard(std))
+
+        val initialScale = viewModel.state.value.scaleComparison
+        assertNotNull(initialScale)
+        assertEquals(TensionDiagnosis.BALANCED, initialScale!!.diagnosis)
+
+        // Simular muestra muy holgada (pocos puntos en 10 cm -> punto más ancho -> más volumen)
+        viewModel.processIntent(TensionIntent.SetStitches(12))
+        viewModel.processIntent(TensionIntent.SetRounds(12))
+
+        val looseScale = viewModel.state.value.scaleComparison
+        assertNotNull(looseScale)
+        assertEquals(TensionDiagnosis.LOOSE, looseScale!!.diagnosis)
+        assertTrue(looseScale.volumeDeviationPercent > 5f)
+        assertTrue(looseScale.diagnosisSummary.contains("tensión holgada"))
+        assertNotNull(looseScale.hookSuggestion)
+
+        // Simular muestra muy apretada (muchos puntos en 10 cm -> punto más estrecho -> menos volumen)
+        viewModel.processIntent(TensionIntent.SetStitches(42))
+        viewModel.processIntent(TensionIntent.SetRounds(42))
+
+        val tightScale = viewModel.state.value.scaleComparison
+        assertNotNull(tightScale)
+        assertEquals(TensionDiagnosis.TIGHT, tightScale!!.diagnosis)
+        assertTrue(tightScale.volumeDeviationPercent < -5f)
+        assertTrue(tightScale.diagnosisSummary.contains("tensión apretada"))
+    }
 }
+
