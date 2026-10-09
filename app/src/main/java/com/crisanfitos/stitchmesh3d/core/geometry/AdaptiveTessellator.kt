@@ -1,5 +1,6 @@
 package com.crisanfitos.stitchmesh3d.core.geometry
 
+import com.crisanfitos.stitchmesh3d.core.engine.color.CrochetColorHelper
 import com.crisanfitos.stitchmesh3d.core.engine.model.TopologyFlag
 import kotlin.math.abs
 import kotlin.math.cos
@@ -28,7 +29,8 @@ object AdaptiveTessellator {
      */
     fun tessellate(
         rings: List<RingProfile>,
-        includePolarCap: Boolean = true
+        includePolarCap: Boolean = true,
+        defaultColorHex: String = "#E06D53"
     ): MeshGeometry {
         val validRings = rings.filter { it.vertexCount > 0 }
         if (validRings.isEmpty()) {
@@ -37,7 +39,8 @@ object AdaptiveTessellator {
                 indices = ShortArray(0),
                 vertexCount = 0,
                 triangleCount = 0,
-                vertexNormals = FloatArray(0)
+                vertexNormals = FloatArray(0),
+                vertexColors = FloatArray(0)
             )
         }
 
@@ -50,6 +53,7 @@ object AdaptiveTessellator {
         val outIndices = Array(validRings.size) { ShortArray(validRings[it].vertexCount) }
 
         val positionsList = ArrayList<Float>()
+        val colorsList = ArrayList<Float>()
 
         // 1. Vértice polar (índice 0 si está activo)
         if (hasPole) {
@@ -58,6 +62,13 @@ object AdaptiveTessellator {
             positionsList.add(0.0f)
             positionsList.add(0.0f)
             positionsList.add(poleZ)
+
+            val poleColor = firstRing.vertices.firstOrNull()?.colorHex ?: defaultColorHex
+            val poleRgba = CrochetColorHelper.toRgbaFloats(poleColor)
+            colorsList.add(poleRgba[0])
+            colorsList.add(poleRgba[1])
+            colorsList.add(poleRgba[2])
+            colorsList.add(poleRgba[3])
             currentOffset = 1
         }
 
@@ -73,6 +84,13 @@ object AdaptiveTessellator {
                 positionsList.add(v.x.toFloat())
                 positionsList.add(v.y.toFloat())
                 positionsList.add(v.z.toFloat())
+
+                val vColor = v.colorHex ?: defaultColorHex
+                val rgba = CrochetColorHelper.toRgbaFloats(vColor)
+                colorsList.add(rgba[0])
+                colorsList.add(rgba[1])
+                colorsList.add(rgba[2])
+                colorsList.add(rgba[3])
                 currentOffset++
 
                 if (isBlo) {
@@ -82,6 +100,11 @@ object AdaptiveTessellator {
                     positionsList.add(v.x.toFloat())
                     positionsList.add(v.y.toFloat())
                     positionsList.add(v.z.toFloat())
+
+                    colorsList.add(rgba[0])
+                    colorsList.add(rgba[1])
+                    colorsList.add(rgba[2])
+                    colorsList.add(rgba[3])
                     currentOffset++
                 } else {
                     outIndices[r][j] = inIdx
@@ -91,6 +114,12 @@ object AdaptiveTessellator {
 
         val totalVertices = currentOffset
         val positions = FloatArray(positionsList.size) { positionsList[it] }
+        val hasCustomColors = validRings.any { r -> r.vertices.any { it.colorHex != null } }
+        val colors = if (hasCustomColors) {
+            FloatArray(colorsList.size) { colorsList[it] }
+        } else {
+            FloatArray(0)
+        }
 
         // 3. Generación del búfer de índices triangulados
         val indexList = ArrayList<Short>()
@@ -138,7 +167,8 @@ object AdaptiveTessellator {
             indices = indicesArray,
             vertexCount = totalVertices,
             triangleCount = triangleCount,
-            vertexNormals = normals
+            vertexNormals = normals,
+            vertexColors = colors
         )
     }
 

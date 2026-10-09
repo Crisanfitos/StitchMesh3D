@@ -77,6 +77,14 @@ sealed interface CrochetToken {
         override val endIndex: Int
     ) : CrochetToken
 
+    /** Token de anotación de color intra-vuelta (ej. "[#FFFFFF]", "(Color A)", "#E06D53") */
+    data class ColorToken(
+        val hexOrName: String,
+        val raw: String,
+        override val startIndex: Int,
+        override val endIndex: Int
+    ) : CrochetToken
+
     /** Token léxico no reconocido */
     data class Unknown(
         val raw: String,

@@ -14,7 +14,8 @@ data class MeshGeometry(
     val indices: ShortArray,
     val vertexCount: Int,
     val triangleCount: Int,
-    val vertexNormals: FloatArray = FloatArray(vertexPositions.size)
+    val vertexNormals: FloatArray = FloatArray(vertexPositions.size),
+    val vertexColors: FloatArray = FloatArray(0)
 ) {
     /**
      * Retorna las coordenadas [X, Y, Z] del vértice en milímetros.
@@ -89,6 +90,35 @@ data class MeshGeometry(
     }
 
     /**
+     * Retorna los componentes RGBA [R, G, B, A] del color del vértice en el rango [0.0f, 1.0f].
+     */
+    fun getVertexColor(index: Int): FloatArray {
+        require(index in 0 until vertexCount) { "Índice de vértice fuera de rango: $index (total: $vertexCount)" }
+        if (vertexColors.isEmpty() || (index * 4 + 3) >= vertexColors.size) {
+            return floatArrayOf(0.878f, 0.427f, 0.325f, 1.0f) // Terracotta base
+        }
+        return floatArrayOf(
+            vertexColors[index * 4],
+            vertexColors[index * 4 + 1],
+            vertexColors[index * 4 + 2],
+            vertexColors[index * 4 + 3]
+        )
+    }
+
+    /**
+     * Genera un [java.nio.FloatBuffer] directo en memoria nativa con orden de bytes del sistema
+     * conteniendo los atributos de color RGBA por vértice para Filament COLOR_0.
+     */
+    fun toDirectColorBuffer(): java.nio.FloatBuffer {
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(vertexColors.size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
+        floatBuffer.put(vertexColors)
+        floatBuffer.flip()
+        return floatBuffer
+    }
+
+    /**
      * Calcula la envolvente tridimensional (Bounding Box) de la geometría en milímetros (RF-2.2, RF-3.3).
      */
     fun computeBoundingBox(): BoundingBox3D {
@@ -135,6 +165,7 @@ data class MeshGeometry(
         if (!vertexPositions.contentEquals(other.vertexPositions)) return false
         if (!indices.contentEquals(other.indices)) return false
         if (!vertexNormals.contentEquals(other.vertexNormals)) return false
+        if (!vertexColors.contentEquals(other.vertexColors)) return false
         if (vertexCount != other.vertexCount) return false
         if (triangleCount != other.triangleCount) return false
 
@@ -145,6 +176,7 @@ data class MeshGeometry(
         var result = vertexPositions.contentHashCode()
         result = 31 * result + indices.contentHashCode()
         result = 31 * result + vertexNormals.contentHashCode()
+        result = 31 * result + vertexColors.contentHashCode()
         result = 31 * result + vertexCount
         result = 31 * result + triangleCount
         return result

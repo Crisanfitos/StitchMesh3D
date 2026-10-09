@@ -40,22 +40,29 @@ object CrochetParser {
         val tokens = lexerResult.tokens.filter { it !is CrochetToken.Comma && it !is CrochetToken.DeclaredCount }
 
         var cursor = 0
+        var activeColor: String? = null
         val nodes = mutableListOf<CrochetAstNode>()
 
         while (cursor < tokens.size) {
             val token = tokens[cursor]
 
             when (token) {
+                // Caso Color: Anotación de color intra-vuelta (ej. "[#FFFFFF]", "(Color A)", "#E06D53")
+                is CrochetToken.ColorToken -> {
+                    activeColor = token.hexOrName
+                    cursor++
+                }
+
                 // Caso A: Prefijo multiplicador antes de grupo (ej. "6 * [1 pb, 1 aum]")
                 is CrochetToken.Number -> {
                     if (cursor + 2 < tokens.size && tokens[cursor + 1] is CrochetToken.Multiply && tokens[cursor + 2] is CrochetToken.BracketOpen) {
                         val times = token.value
                         val openToken = tokens[cursor + 2] as CrochetToken.BracketOpen
                         cursor += 3
-                        val (groupNodes, newCursor, groupErr) = parseGroup(tokens, cursor, openToken.isSquare)
+                        val (groupNodes, newCursor, groupErr) = parseGroup(tokens, cursor, openToken.isSquare, activeColor)
                         if (groupErr != null) errors.add(groupErr)
                         cursor = newCursor
-                        nodes.add(CrochetAstNode.RepeatNode(children = groupNodes, times = times))
+                        nodes.add(CrochetAstNode.RepeatNode(children = groupNodes, times = times, colorHex = activeColor))
                         continue
                     }
 
@@ -67,10 +74,10 @@ object CrochetParser {
                         val next = tokens[cursor]
                         if (next is CrochetToken.ModifierToken && cursor + 1 < tokens.size && tokens[cursor + 1] is CrochetToken.StitchToken) {
                             val stitchToken = tokens[cursor + 1] as CrochetToken.StitchToken
-                            nodes.add(CrochetAstNode.StitchNode(stitchToken.stitchType.withTopology(next.flag), count = count))
+                            nodes.add(CrochetAstNode.StitchNode(stitchToken.stitchType.withTopology(next.flag), count = count, colorHex = activeColor))
                             cursor += 2
                         } else if (next is CrochetToken.StitchToken) {
-                            nodes.add(CrochetAstNode.StitchNode(next.stitchType, count = count))
+                            nodes.add(CrochetAstNode.StitchNode(next.stitchType, count = count, colorHex = activeColor))
                             cursor++
                         } else {
                             errors.add(ParseError("Número $count no está seguido de un tipo de puntada", token.startIndex, next.endIndex))
@@ -89,10 +96,10 @@ object CrochetParser {
                         if (next is CrochetToken.Number && cursor + 1 < tokens.size && tokens[cursor + 1] is CrochetToken.StitchToken) {
                             val count = next.value
                             val stitchToken = tokens[cursor + 1] as CrochetToken.StitchToken
-                            nodes.add(CrochetAstNode.StitchNode(stitchToken.stitchType.withTopology(flag), count = count))
+                            nodes.add(CrochetAstNode.StitchNode(stitchToken.stitchType.withTopology(flag), count = count, colorHex = activeColor))
                             cursor += 2
                         } else if (next is CrochetToken.StitchToken) {
-                            nodes.add(CrochetAstNode.StitchNode(next.stitchType.withTopology(flag), count = 1))
+                            nodes.add(CrochetAstNode.StitchNode(next.stitchType.withTopology(flag), count = 1, colorHex = activeColor))
                             cursor++
                         } else {
                             errors.add(ParseError("Modificador ${token.raw} sin puntada asociada", token.startIndex, next.endIndex))
@@ -104,14 +111,14 @@ object CrochetParser {
 
                 // Caso D: Puntada aislada sin número previo (ej. "aum", "pb", "AM [6]") -> count = 1
                 is CrochetToken.StitchToken -> {
-                    nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = 1))
+                    nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = 1, colorHex = activeColor))
                     cursor++
                 }
 
                 // Caso E: Apertura de grupo: '[' o '(' (ej. "[1 pb, 1 aum] * 6")
                 is CrochetToken.BracketOpen -> {
                     cursor++
-                    val (groupNodes, newCursor, groupErr) = parseGroup(tokens, cursor, token.isSquare)
+                    val (groupNodes, newCursor, groupErr) = parseGroup(tokens, cursor, token.isSquare, activeColor)
                     if (groupErr != null) errors.add(groupErr)
                     cursor = newCursor
 
@@ -134,7 +141,7 @@ object CrochetParser {
                     }
 
                     if (times > 1) {
-                        nodes.add(CrochetAstNode.RepeatNode(children = groupNodes, times = times))
+                        nodes.add(CrochetAstNode.RepeatNode(children = groupNodes, times = times, colorHex = activeColor))
                     } else {
                         nodes.addAll(groupNodes)
                     }
@@ -180,8 +187,14 @@ object CrochetParser {
         val error: ParseError?
     )
 
-    private fun parseGroup(tokens: List<CrochetToken>, startCursor: Int, isSquare: Boolean): GroupResult {
+    private fun parseGroup(
+        tokens: List<CrochetToken>,
+        startCursor: Int,
+        isSquare: Boolean,
+        inheritedColor: String? = null
+    ): GroupResult {
         var cursor = startCursor
+        var groupColor = inheritedColor
         val nodes = mutableListOf<CrochetAstNode>()
 
         while (cursor < tokens.size) {
@@ -191,10 +204,16 @@ object CrochetParser {
                 return GroupResult(nodes = nodes, newCursor = cursor + 1, error = null)
             }
 
+            if (token is CrochetToken.ColorToken) {
+                groupColor = token.hexOrName
+                cursor++
+                continue
+            }
+
             // Subgrupo recursivo
             if (token is CrochetToken.BracketOpen) {
                 cursor++
-                val (innerNodes, newCursor, innerErr) = parseGroup(tokens, cursor, token.isSquare)
+                val (innerNodes, newCursor, innerErr) = parseGroup(tokens, cursor, token.isSquare, groupColor)
                 if (innerErr != null) return GroupResult(nodes, newCursor, innerErr)
                 cursor = newCursor
                 nodes.addAll(innerNodes)
@@ -208,10 +227,10 @@ object CrochetParser {
                     val next = tokens[cursor]
                     if (next is CrochetToken.ModifierToken && cursor + 1 < tokens.size && tokens[cursor + 1] is CrochetToken.StitchToken) {
                         val stitchToken = tokens[cursor + 1] as CrochetToken.StitchToken
-                        nodes.add(CrochetAstNode.StitchNode(stitchToken.stitchType.withTopology(next.flag), count = count))
+                        nodes.add(CrochetAstNode.StitchNode(stitchToken.stitchType.withTopology(next.flag), count = count, colorHex = groupColor))
                         cursor += 2
                     } else if (next is CrochetToken.StitchToken) {
-                        nodes.add(CrochetAstNode.StitchNode(next.stitchType, count = count))
+                        nodes.add(CrochetAstNode.StitchNode(next.stitchType, count = count, colorHex = groupColor))
                         cursor++
                     } else {
                         return GroupResult(nodes, cursor, ParseError("Número $count dentro de corchetes sin tipo de puntada", token.startIndex, next.endIndex))
@@ -230,10 +249,10 @@ object CrochetParser {
                     if (next is CrochetToken.Number && cursor + 1 < tokens.size && tokens[cursor + 1] is CrochetToken.StitchToken) {
                         val count = next.value
                         val stitchToken = tokens[cursor + 1] as CrochetToken.StitchToken
-                        nodes.add(CrochetAstNode.StitchNode(stitchToken.stitchType.withTopology(flag), count = count))
+                        nodes.add(CrochetAstNode.StitchNode(stitchToken.stitchType.withTopology(flag), count = count, colorHex = groupColor))
                         cursor += 2
                     } else if (next is CrochetToken.StitchToken) {
-                        nodes.add(CrochetAstNode.StitchNode(next.stitchType.withTopology(flag), count = 1))
+                        nodes.add(CrochetAstNode.StitchNode(next.stitchType.withTopology(flag), count = 1, colorHex = groupColor))
                         cursor++
                     } else {
                         return GroupResult(nodes, cursor, ParseError("Modificador ${token.raw} sin puntada", token.startIndex, next.endIndex))
@@ -247,7 +266,7 @@ object CrochetParser {
             }
 
             if (token is CrochetToken.StitchToken) {
-                nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = 1))
+                nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = 1, colorHex = groupColor))
                 cursor++
                 continue
             }

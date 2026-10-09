@@ -202,12 +202,14 @@ class StuffingInflationFilterTest {
         val denseMesh = AdaptiveTessellator.tessellate(rings, includePolarCap = true)
         assertTrue("La malla densa debe tener al menos 10.000 vértices", denseMesh.vertexCount >= 10000)
 
-        // Calentamiento JIT
-        StuffingInflationFilter.applyInflation(
-            mesh = denseMesh,
-            topologyType = PartTopologyType.CLOSED_FILLED,
-            config = StuffingInflationConfig(smoothingIterations = 1)
-        )
+        // Calentamiento JIT (3 pasadas para permitir optimización C2)
+        repeat(3) {
+            StuffingInflationFilter.applyInflation(
+                mesh = denseMesh,
+                topologyType = PartTopologyType.CLOSED_FILLED,
+                config = StuffingInflationConfig(smoothingIterations = 1)
+            )
+        }
 
         val startTime = System.nanoTime()
         val result = StuffingInflationFilter.applyInflation(
