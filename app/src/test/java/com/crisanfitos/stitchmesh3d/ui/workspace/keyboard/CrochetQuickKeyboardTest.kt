@@ -56,12 +56,43 @@ class CrochetQuickKeyboardTest {
 
     @Test
     fun `syntax and modifier tokens include topological modifiers and grouping`() {
-        val syntaxTokens = listOf("BLO", "FLO", "[", "]", "*", "(", ")", ",")
-        assertEquals(8, syntaxTokens.size)
+        val syntaxTokens = listOf("BLO", "FLO", "[", "]", "*", "( )", "(", ")", ",")
+        assertEquals(9, syntaxTokens.size)
         assertTrue(syntaxTokens.contains("BLO"))
         assertTrue(syntaxTokens.contains("FLO"))
         assertTrue(syntaxTokens.contains("["))
         assertTrue(syntaxTokens.contains("]"))
         assertTrue(syntaxTokens.contains("*"))
+        assertTrue(syntaxTokens.contains("( )"))
+    }
+
+    @Test
+    fun `insertTokenAtCursor places token at specific index and returns updated cursor`() {
+        val original = "6 pb"
+        // Insertar ", 1 aum" al final
+        val (text1, cursor1) = CrochetTokenFormatter.insertTokenAtCursor(original, ",", 4)
+        assertEquals("6 pb,", text1)
+        assertEquals(5, cursor1)
+
+        val (text2, cursor2) = CrochetTokenFormatter.insertTokenAtCursor(text1, "aum", 5)
+        assertEquals("6 pb, aum", text2)
+        assertEquals(9, cursor2)
+    }
+
+    @Test
+    fun `insertToken handles automatic parentheses pair`() {
+        val formatted = CrochetTokenFormatter.insertToken("6 pb", "( )")
+        assertEquals("6 pb ()", formatted)
+
+        val (textAtCursor, newCursor) = CrochetTokenFormatter.insertTokenAtCursor("6 pb", "( )", 4)
+        assertEquals("6 pb ()", textAtCursor)
+        assertEquals(6, newCursor) // Cursor posicionado dentro de los paréntesis
+    }
+
+    @Test
+    fun `deleteCharBeforeCursor removes character before cursor position`() {
+        val (text, newCursor) = CrochetTokenFormatter.deleteCharBeforeCursor("6 pb", 4)
+        assertEquals("6 p", text)
+        assertEquals(3, newCursor)
     }
 }

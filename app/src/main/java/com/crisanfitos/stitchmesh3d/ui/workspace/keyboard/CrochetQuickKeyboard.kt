@@ -142,7 +142,7 @@ fun CrochetQuickKeyboard(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                val syntaxTokens = listOf("BLO", "FLO", "[", "]", "*", "(", ")", ",")
+                val syntaxTokens = listOf("BLO", "FLO", "[", "]", "*", "( )", "(", ")", ",")
                 syntaxTokens.forEach { token ->
                     CrochetKeyButton(
                         label = token,
