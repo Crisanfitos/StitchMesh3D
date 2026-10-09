@@ -9,9 +9,10 @@ import java.nio.ByteOrder
  *
  * Implementa la especificación oficial Khronos glTF 2.0:
  * - Material Wool PBR: `roughnessFactor = 0.9` (textil mate), `metallicFactor = 0.0`, `doubleSided = true`.
- * - Búfer binario con atributos POSITION (Float3), NORMAL (Float3) e INDICES (Unsigned Short).
- * - Alineación estricta de 4 bytes en encabezados y chunks.
- * - Compatible directamente con Google Filament / Sceneview [com.google.android.filament.utils.ModelViewer.loadModelGlb].
+ * - Modo Wireframe: compatible con Google Filament / Sceneview usando la extensión `KHR_materials_unlit`
+ *   y primitivas `LINES` (mode 1) sin atributos de normales de superficie para prevenir cierres inesperados.
+ * - Búfer binario con alineación estricta de 4 bytes en encabezados y chunks.
+ * - Compatible directamente con Google Filament [com.google.android.filament.utils.ModelViewer.loadModelGlb].
  */
 object GlbMeshBuilder {
 
@@ -26,6 +27,7 @@ object GlbMeshBuilder {
      * @param mesh Geometría triangulada con posiciones, normales e índices.
      * @param yarnColor Color base difuso de la lana (por defecto Terracotta).
      * @param roughness Factor de rugosidad PBR (0.9 para lana/textil).
+     * @param isWireframe Si es true, genera aristas glTF LINES con shader Unlit en SageGreen.
      * @return [ByteBuffer] directo posicionado en 0 con capacidad exacta del GLB.
      */
     fun buildGlb(
@@ -85,16 +87,9 @@ object GlbMeshBuilder {
 
         // Longitudes de datos binarios
         val posByteLength = vertexCount * 3 * 4
-        val normByteLength = vertexCount * 3 * 4
         val rawIndByteLength = indexCount * 2
-        // Alinear longitud de índices a múltiplo de 4
         val indPadding = if (rawIndByteLength % 4 != 0) 4 - (rawIndByteLength % 4) else 0
         val indByteLength = rawIndByteLength + indPadding
-
-        val posOffset = 0
-        val normOffset = posByteLength
-        val indOffset = posByteLength + normByteLength
-        val totalBinLength = indOffset + indByteLength
 
         // Color normalizado RGBA: si es wireframe, usar color técnico SageGreen (#52A474)
         val effectiveColor = if (isWireframe) Color(0xFF52A474) else yarnColor
@@ -102,11 +97,106 @@ object GlbMeshBuilder {
         val g = effectiveColor.green
         val b = effectiveColor.blue
 
-        // Modo de primitiva: 1 (LINES) para wireframe, 4 (TRIANGLES) para superficie sólida
-        val primitiveMode = if (isWireframe) 1 else 4
+        val jsonString: String
+        val totalBinLength: Int
 
-        // Construir JSON metadata de glTF 2.0
-        val jsonString = """
+        if (isWireframe) {
+            // WIREFRAME: Primitiva LINES (mode 1) con KHR_materials_unlit y sin atributo NORMAL
+            totalBinLength = posByteLength + indByteLength
+
+            jsonString = """
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "StitchMesh3D Wireframe Generator"
+  },
+  "extensionsUsed": [
+    "KHR_materials_unlit"
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [0]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "materials": [
+    {
+      "name": "WireframeUnlitMaterial",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [$r, $g, $b, 1.0]
+      },
+      "extensions": {
+        "KHR_materials_unlit": {}
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0
+          },
+          "indices": 1,
+          "material": 0,
+          "mode": 1
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC3",
+      "min": [$minX, $minY, $minZ],
+      "max": [$maxX, $maxY, $maxZ]
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 0,
+      "componentType": 5123,
+      "count": $indexCount,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": $posByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $posByteLength,
+      "byteLength": $rawIndByteLength,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": $totalBinLength
+    }
+  ]
+}
+""".trim()
+        } else {
+            // SÓLIDO PBR: Primitiva TRIANGLES (mode 4) con normales y WoolPbrMaterial
+            val normByteLength = vertexCount * 3 * 4
+            val posOffset = 0
+            val normOffset = posByteLength
+            val indOffset = posByteLength + normByteLength
+            totalBinLength = indOffset + indByteLength
+
+            jsonString = """
 {
   "asset": {
     "version": "2.0",
@@ -144,7 +234,7 @@ object GlbMeshBuilder {
           },
           "indices": 2,
           "material": 0,
-          "mode": $primitiveMode
+          "mode": 4
         }
       ]
     }
@@ -201,6 +291,7 @@ object GlbMeshBuilder {
   ]
 }
 """.trim()
+        }
 
         val jsonBytes = jsonString.toByteArray(Charsets.UTF_8)
         val jsonPadding = if (jsonBytes.size % 4 != 0) 4 - (jsonBytes.size % 4) else 0
@@ -237,10 +328,12 @@ object GlbMeshBuilder {
             byteBuffer.putFloat(p)
         }
 
-        // Payload binario: NORMALS (Float3)
-        for (i in 0 until (vertexCount * 3)) {
-            val n = if (i < mesh.vertexNormals.size) mesh.vertexNormals[i] else 0f
-            byteBuffer.putFloat(n)
+        if (!isWireframe) {
+            // Payload binario: NORMALS (Float3) solo en modo sólido
+            for (i in 0 until (vertexCount * 3)) {
+                val n = if (i < mesh.vertexNormals.size) mesh.vertexNormals[i] else 0f
+                byteBuffer.putFloat(n)
+            }
         }
 
         // Payload binario: INDICES (Unsigned Short)

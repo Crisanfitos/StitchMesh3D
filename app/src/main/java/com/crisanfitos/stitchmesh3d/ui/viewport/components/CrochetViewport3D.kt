@@ -20,6 +20,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.google.android.filament.EntityManager
 import com.google.android.filament.LightManager
 import com.google.android.filament.Skybox
+import com.google.android.filament.utils.GestureDetector
 import com.google.android.filament.utils.Manipulator
 import com.google.android.filament.utils.ModelViewer
 import java.nio.ByteBuffer
@@ -29,11 +30,11 @@ import java.nio.ByteBuffer
  *
  * Configura una escena PBR con:
  * - Material textil mate de lana (Wool PBR: roughness ~ 0.9, metallic = 0.0)
- * - Iluminación multicapa: Sol principal direccional + luz de relleno fría + rebote suave
+ * - Iluminación multicapa calibrada para resaltar el relieve del tejido
  * - Fondo neutro oscuro (#121316)
  * - Controles táctiles de órbita 360°, zoom por pellizco y paneo (RF-3.3)
- * - Presets de cámara y botón de reset (Iso, Frontal, Lateral, Superior)
- * - Ciclo de vida sincronizado con Choreographer y Compose DisposableEffect
+ * - Presets de cámara matemáticos deterministas con Bookmarks nativos (Isométrica, Frontal, Lateral, Superior)
+ * - Ciclo de vida robusto protegido contra cierres inesperados en cambios de Surface o de ventana
  */
 @SuppressLint("ClickableViewAccessibility")
 @Composable
@@ -47,8 +48,10 @@ fun CrochetViewport3D(
 ) {
     val modelViewerRef = remember { arrayOfNulls<ModelViewer>(1) }
     val manipulatorRef = remember { arrayOfNulls<Manipulator>(1) }
+    val surfaceViewRef = remember { arrayOfNulls<SurfaceView>(1) }
     val choreographerCallbackRef = remember { arrayOfNulls<Choreographer.FrameCallback>(1) }
     val lightEntitiesRef = remember { arrayOf(IntArray(3)) }
+    val isReleasedRef = remember { booleanArrayOf(false) }
 
     // Generar binario GLB directo si hay geometría disponible
     val glbBuffer: ByteBuffer? = remember(meshGeometry, yarnColor, roughness, isWireframe) {
@@ -71,48 +74,32 @@ fun CrochetViewport3D(
             try {
                 glbBuffer.rewind()
                 // Preservar la orientación y zoom actual de cámara para evitar saltos o parpadeos (RF-3.5)
-                val currentCameraBookmark = manipulator?.currentBookmark
-                viewer.destroyModel()
+                val currentCameraBookmark = try { manipulator?.currentBookmark } catch (_: Throwable) { null }
+                try {
+                    viewer.destroyModel()
+                } catch (_: Throwable) {}
                 viewer.loadModelGlb(glbBuffer)
                 viewer.transformToUnitCube()
                 if (currentCameraBookmark != null) {
-                    manipulator.jumpToBookmark(currentCameraBookmark)
+                    try {
+                        manipulator?.jumpToBookmark(currentCameraBookmark)
+                    } catch (_: Throwable) {}
                 }
             } catch (t: Throwable) {
                 t.printStackTrace()
             }
         } else {
-            viewer.destroyModel()
+            try {
+                viewer.destroyModel()
+            } catch (_: Throwable) {}
         }
     }
 
-    // Respuesta reactiva a presets y reset de cámara (RF-3.3)
+    // Respuesta reactiva a presets y reset de cámara (Frontal, Lateral, Superior, Iso, Reset) (RF-3.3)
     LaunchedEffect(cameraPreset) {
-        val manipulator = manipulatorRef[0] ?: return@LaunchedEffect
-        try {
-            when (cameraPreset) {
-                CameraPreset.RESET, CameraPreset.ISOMETRIC -> {
-                    manipulator.jumpToBookmark(manipulator.homeBookmark)
-                }
-                CameraPreset.FRONT -> {
-                    manipulator.jumpToBookmark(manipulator.homeBookmark)
-                }
-                CameraPreset.SIDE -> {
-                    manipulator.jumpToBookmark(manipulator.homeBookmark)
-                    manipulator.grabBegin(0, 0, false)
-                    manipulator.grabUpdate(250, 0)
-                    manipulator.grabEnd()
-                }
-                CameraPreset.TOP -> {
-                    manipulator.jumpToBookmark(manipulator.homeBookmark)
-                    manipulator.grabBegin(0, 0, false)
-                    manipulator.grabUpdate(0, -250)
-                    manipulator.grabEnd()
-                }
-            }
-        } catch (_: Throwable) {
-            // Protección ante manipulador no disponible en frame actual
-        }
+        val viewer = modelViewerRef[0] ?: return@LaunchedEffect
+        val surfaceView = surfaceViewRef[0]
+        applyCameraPreset(viewer, surfaceView, cameraPreset, manipulatorRef)
     }
 
     Box(
@@ -123,16 +110,18 @@ fun CrochetViewport3D(
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
+                isReleasedRef[0] = false
                 SurfaceView(context).apply {
                     try {
                         val manipulator = Manipulator.Builder()
-                            .targetPosition(0f, 0f, 0f)
-                            .orbitHomePosition(0f, 0f, 3.5f)
+                            .targetPosition(0f, 0f, -4f)
+                            .orbitHomePosition(2.2f, 1.8f, -1.8f)
                             .orbitSpeed(0.005f, 0.005f)
                             .zoomSpeed(0.01f)
                             .panning(true)
                             .build(Manipulator.Mode.ORBIT)
                         manipulatorRef[0] = manipulator
+                        surfaceViewRef[0] = this
 
                         val viewer = ModelViewer(
                             surfaceView = this,
@@ -187,10 +176,15 @@ fun CrochetViewport3D(
 
                         val frameCallback = object : Choreographer.FrameCallback {
                             override fun doFrame(frameTimeNanos: Long) {
+                                if (isReleasedRef[0]) return
                                 choreographerCallbackRef[0]?.let {
                                     Choreographer.getInstance().postFrameCallback(it)
                                 }
-                                viewer.render(frameTimeNanos)
+                                try {
+                                    viewer.render(frameTimeNanos)
+                                } catch (_: Throwable) {
+                                    // Protección contra invalidación transitoria de SwapChain
+                                }
                             }
                         }
                         choreographerCallbackRef[0] = frameCallback
@@ -207,6 +201,7 @@ fun CrochetViewport3D(
                 }
             },
             onRelease = {
+                isReleasedRef[0] = true
                 try {
                     choreographerCallbackRef[0]?.let {
                         Choreographer.getInstance().removeFrameCallback(it)
@@ -235,12 +230,14 @@ fun CrochetViewport3D(
                 }
                 modelViewerRef[0] = null
                 manipulatorRef[0] = null
+                surfaceViewRef[0] = null
             }
         )
     }
 
     DisposableEffect(Unit) {
         onDispose {
+            isReleasedRef[0] = true
             try {
                 choreographerCallbackRef[0]?.let {
                     Choreographer.getInstance().removeFrameCallback(it)
@@ -269,6 +266,66 @@ fun CrochetViewport3D(
             }
             modelViewerRef[0] = null
             manipulatorRef[0] = null
+            surfaceViewRef[0] = null
         }
     }
+}
+
+/**
+ * Aplica un preset orbital de cámara determinista (Frontal, Lateral, Superior, Iso, Reset)
+ * actualizando el Manipulator y el GestureDetector de Filament para una rotación inmediata y reactiva (RF-3.3).
+ */
+private fun applyCameraPreset(
+    viewer: ModelViewer,
+    surfaceView: SurfaceView?,
+    preset: CameraPreset,
+    manipulatorRef: Array<Manipulator?>
+) {
+    val (eyeX, eyeY, eyeZ) = when (preset) {
+        CameraPreset.ISOMETRIC, CameraPreset.RESET -> floatArrayOf(2.2f, 1.8f, -1.8f)
+        CameraPreset.FRONT -> floatArrayOf(0f, 0f, -0.8f)
+        CameraPreset.SIDE -> floatArrayOf(3.2f, 0f, -4.0f)
+        CameraPreset.TOP -> floatArrayOf(0.001f, 3.2f, -4.0f)
+    }
+    val (upX, upY, upZ) = when (preset) {
+        CameraPreset.TOP -> floatArrayOf(0f, 0f, -1f)
+        else -> floatArrayOf(0f, 1f, 0f)
+    }
+
+    if (surfaceView != null) {
+        try {
+            val width = surfaceView.width.coerceAtLeast(1)
+            val height = surfaceView.height.coerceAtLeast(1)
+            val newManipulator = Manipulator.Builder()
+                .viewport(width, height)
+                .targetPosition(0f, 0f, -4f)
+                .orbitHomePosition(eyeX, eyeY, eyeZ)
+                .upVector(upX, upY, upZ)
+                .zoomSpeed(0.01f)
+                .orbitSpeed(0.005f, 0.005f)
+                .panning(true)
+                .build(Manipulator.Mode.ORBIT)
+
+            val manipulatorField = ModelViewer::class.java.getDeclaredField("cameraManipulator")
+            manipulatorField.isAccessible = true
+            manipulatorField.set(viewer, newManipulator)
+
+            val detectorField = ModelViewer::class.java.getDeclaredField("gestureDetector")
+            detectorField.isAccessible = true
+            detectorField.set(viewer, GestureDetector(surfaceView, newManipulator))
+
+            manipulatorRef[0] = newManipulator
+            return
+        } catch (_: Throwable) {
+            // Continuar con fallback directo
+        }
+    }
+
+    try {
+        viewer.camera.lookAt(
+            eyeX.toDouble(), eyeY.toDouble(), eyeZ.toDouble(),
+            0.0, 0.0, -4.0,
+            upX.toDouble(), upY.toDouble(), upZ.toDouble()
+        )
+    } catch (_: Throwable) {}
 }

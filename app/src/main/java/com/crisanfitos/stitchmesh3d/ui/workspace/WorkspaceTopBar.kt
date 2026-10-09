@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,7 +71,10 @@ fun WorkspaceTopBar(
                         text = projectTitle,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = StitchMeshTextPrimary
+                        color = StitchMeshTextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Box(
                         modifier = Modifier
@@ -82,7 +86,9 @@ fun WorkspaceTopBar(
                             text = "CAD WORKBENCH",
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
-                            color = StitchMeshOnAccent
+                            color = StitchMeshOnAccent,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }

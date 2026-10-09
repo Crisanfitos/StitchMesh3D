@@ -246,81 +246,69 @@ fun AdaptiveWorkspaceScaffold(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            if (isFullscreenViewport) {
-                // Modo Visor 3D Pantalla Completa (Stitch screens 1d1f9e82 y 244f94d7)
-                CrochetViewportScreen(
-                    state = viewportState.copy(isFullscreen = true),
-                    onIntent = { intent ->
-                        if (intent is ViewportIntent.ToggleFullscreen) {
-                            isFullscreenViewport = false
-                        } else {
-                            viewportViewModel.processIntent(intent)
-                        }
-                    },
-                    onCloseFullscreen = { isFullscreenViewport = false },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                val isTablet = maxWidth >= 840.dp
+            val isTablet = maxWidth >= 840.dp
 
             if (isTablet) {
                 // Modo Tablet Dual-Pane: 40% Editor (izquierda) / 60% Visor 3D (derecha)
+                // En pantalla completa, el editor y el separador se ocultan y el visor toma el 100% sin recrearse
                 Row(modifier = Modifier.fillMaxSize()) {
-                    // Panel de edición de patrón (40%)
-                    Column(
-                        modifier = Modifier
-                            .weight(0.40f)
-                            .fillMaxHeight()
-                    ) {
-                        PartSelectorTabBar(
-                            parts = parts,
-                            selectedPartId = selectedPartId,
-                            onPartSelected = onPartSelected,
-                            onAddPart = onAddPart,
-                            onRenamePart = onRenamePart,
-                            onDuplicatePart = onDuplicatePart,
-                            onDeletePart = onDeletePart
-                        )
-
-                        RoundEditorPane(
-                            rounds = rounds,
-                            activeRoundId = activeRoundId,
-                            onRoundSelected = { id ->
-                                internalSelectedRoundId = id
-                                onRoundSelected?.invoke(id)
-                            },
-                            onInstructionChanged = onInstructionChanged,
-                            onAddRound = onAddRound,
-                            onDeleteRound = onDeleteRound,
-                            onApplySuggestion = onApplySuggestion,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        // Teclado virtual contextual de crochet
-                        if (isKeyboardVisible) {
-                            CrochetQuickKeyboard(
-                                onTokenInserted = { handleToken(it) },
-                                onBackspace = { handleBackspace() },
-                                onEnter = onAddRound,
-                                onClose = { isKeyboardVisible = false }
+                    if (!isFullscreenViewport) {
+                        // Panel de edición de patrón (40%)
+                        Column(
+                            modifier = Modifier
+                                .weight(0.40f)
+                                .fillMaxHeight()
+                        ) {
+                            PartSelectorTabBar(
+                                parts = parts,
+                                selectedPartId = selectedPartId,
+                                onPartSelected = onPartSelected,
+                                onAddPart = onAddPart,
+                                onRenamePart = onRenamePart,
+                                onDuplicatePart = onDuplicatePart,
+                                onDeletePart = onDeletePart
                             )
-                        } else {
-                            KeyboardOpenToggle(onClick = { isKeyboardVisible = true })
+
+                            RoundEditorPane(
+                                rounds = rounds,
+                                activeRoundId = activeRoundId,
+                                onRoundSelected = { id ->
+                                    internalSelectedRoundId = id
+                                    onRoundSelected?.invoke(id)
+                                },
+                                onInstructionChanged = onInstructionChanged,
+                                onAddRound = onAddRound,
+                                onDeleteRound = onDeleteRound,
+                                onApplySuggestion = onApplySuggestion,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            // Teclado virtual contextual de crochet
+                            if (isKeyboardVisible) {
+                                CrochetQuickKeyboard(
+                                    onTokenInserted = { handleToken(it) },
+                                    onBackspace = { handleBackspace() },
+                                    onEnter = onAddRound,
+                                    onClose = { isKeyboardVisible = false }
+                                )
+                            } else {
+                                KeyboardOpenToggle(onClick = { isKeyboardVisible = true })
+                            }
                         }
+
+                        // Divisor vertical CAD de 1dp
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .fillMaxHeight()
+                                .background(StitchMeshSurfaceBorder)
+                        )
                     }
 
-                    // Divisor vertical CAD de 1dp
+                    // Panel de Visor 3D (60% en split, 100% en fullscreen)
                     Box(
                         modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .background(StitchMeshSurfaceBorder)
-                    )
-
-                    // Panel de Visor 3D (60%)
-                    Box(
-                        modifier = Modifier
-                            .weight(0.60f)
+                            .weight(if (isFullscreenViewport) 1f else 0.60f)
                             .fillMaxHeight()
                             .background(StitchMeshNeutralDark)
                     ) {
@@ -328,14 +316,15 @@ fun AdaptiveWorkspaceScaffold(
                             viewportContent()
                         } else {
                             CrochetViewportScreen(
-                                state = viewportState.copy(isFullscreen = false),
+                                state = viewportState.copy(isFullscreen = isFullscreenViewport),
                                 onIntent = { intent ->
                                     if (intent is ViewportIntent.ToggleFullscreen) {
-                                        isFullscreenViewport = true
+                                        isFullscreenViewport = !isFullscreenViewport
                                     } else {
                                         viewportViewModel.processIntent(intent)
                                     }
                                 },
+                                onCloseFullscreen = { isFullscreenViewport = false },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -349,7 +338,7 @@ fun AdaptiveWorkspaceScaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = StitchMeshNeutralDark,
                     floatingActionButton = {
-                        if (selectedTab == WorkspaceMobileTab.EDITOR) {
+                        if (!isFullscreenViewport && selectedTab == WorkspaceMobileTab.EDITOR) {
                             FloatingActionButton(
                                 onClick = { selectedTab = WorkspaceMobileTab.VIEWPORT_3D },
                                 containerColor = StitchMeshTerracotta,
@@ -369,59 +358,63 @@ fun AdaptiveWorkspaceScaffold(
                             .fillMaxSize()
                             .padding(mobilePadding)
                     ) {
-                        SecondaryTabRow(
-                            selectedTabIndex = selectedTab.ordinal,
-                            containerColor = StitchMeshSurfaceContainer,
-                            contentColor = StitchMeshTextPrimary
-                        ) {
-                            Tab(
-                                selected = selectedTab == WorkspaceMobileTab.EDITOR,
-                                onClick = { selectedTab = WorkspaceMobileTab.EDITOR },
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Edit,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = if (selectedTab == WorkspaceMobileTab.EDITOR) StitchMeshTerracotta else StitchMeshTextSecondary
-                                        )
-                                        Text(
-                                            text = "Editor (${rounds.size})",
-                                            fontWeight = if (selectedTab == WorkspaceMobileTab.EDITOR) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (selectedTab == WorkspaceMobileTab.EDITOR) StitchMeshTextPrimary else StitchMeshTextSecondary
-                                        )
+                        if (!isFullscreenViewport) {
+                            SecondaryTabRow(
+                                selectedTabIndex = selectedTab.ordinal,
+                                containerColor = StitchMeshSurfaceContainer,
+                                contentColor = StitchMeshTextPrimary
+                            ) {
+                                Tab(
+                                    selected = selectedTab == WorkspaceMobileTab.EDITOR,
+                                    onClick = { selectedTab = WorkspaceMobileTab.EDITOR },
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = if (selectedTab == WorkspaceMobileTab.EDITOR) StitchMeshTerracotta else StitchMeshTextSecondary
+                                            )
+                                            Text(
+                                                text = "Editor (${rounds.size})",
+                                                fontWeight = if (selectedTab == WorkspaceMobileTab.EDITOR) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (selectedTab == WorkspaceMobileTab.EDITOR) StitchMeshTextPrimary else StitchMeshTextSecondary
+                                            )
+                                        }
                                     }
-                                }
-                            )
+                                )
 
-                            Tab(
-                                selected = selectedTab == WorkspaceMobileTab.VIEWPORT_3D,
-                                onClick = { selectedTab = WorkspaceMobileTab.VIEWPORT_3D },
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ViewInAr,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = if (selectedTab == WorkspaceMobileTab.VIEWPORT_3D) StitchMeshTerracotta else StitchMeshTextSecondary
-                                        )
-                                        Text(
-                                            text = "Visor 3D",
-                                            fontWeight = if (selectedTab == WorkspaceMobileTab.VIEWPORT_3D) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (selectedTab == WorkspaceMobileTab.VIEWPORT_3D) StitchMeshTextPrimary else StitchMeshTextSecondary
-                                        )
+                                Tab(
+                                    selected = selectedTab == WorkspaceMobileTab.VIEWPORT_3D,
+                                    onClick = { selectedTab = WorkspaceMobileTab.VIEWPORT_3D },
+                                    text = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ViewInAr,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp),
+                                                tint = if (selectedTab == WorkspaceMobileTab.VIEWPORT_3D) StitchMeshTerracotta else StitchMeshTextSecondary
+                                            )
+                                            Text(
+                                                text = "Visor 3D",
+                                                fontWeight = if (selectedTab == WorkspaceMobileTab.VIEWPORT_3D) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (selectedTab == WorkspaceMobileTab.VIEWPORT_3D) StitchMeshTextPrimary else StitchMeshTextSecondary
+                                            )
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
 
-                        when (selectedTab) {
+                        val activeTab = if (isFullscreenViewport) WorkspaceMobileTab.VIEWPORT_3D else selectedTab
+
+                        when (activeTab) {
                             WorkspaceMobileTab.EDITOR -> {
                                 Column(modifier = Modifier.fillMaxSize()) {
                                     PartSelectorTabBar(
@@ -466,14 +459,15 @@ fun AdaptiveWorkspaceScaffold(
                                         viewportContent()
                                     } else {
                                         CrochetViewportScreen(
-                                            state = viewportState.copy(isFullscreen = false),
+                                            state = viewportState.copy(isFullscreen = isFullscreenViewport),
                                             onIntent = { intent ->
                                                 if (intent is ViewportIntent.ToggleFullscreen) {
-                                                    isFullscreenViewport = true
+                                                    isFullscreenViewport = !isFullscreenViewport
                                                 } else {
                                                     viewportViewModel.processIntent(intent)
                                                 }
                                             },
+                                            onCloseFullscreen = { isFullscreenViewport = false },
                                             modifier = Modifier.fillMaxSize()
                                         )
                                     }
@@ -485,7 +479,6 @@ fun AdaptiveWorkspaceScaffold(
             }
         }
     }
-}
 }
 
 /**

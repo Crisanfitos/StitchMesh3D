@@ -212,4 +212,41 @@ class AdaptiveTessellatorTest {
             assertTrue("La normal del triángulo $t debe apuntar hacia el exterior radial: $radialDot", radialDot > 0f)
         }
     }
+
+    @Test
+    fun `smooth normals calculation produces unit length vectors and outward radial orientation`() {
+        val ring1 = RingProfileGenerator.generateRing(
+            roundIndex = 1,
+            stitches = List(6) { StitchType.SingleCrochet },
+            gaugeStandard = standard
+        )
+        val ring2 = RingProfileGenerator.generateRing(
+            roundIndex = 2,
+            stitches = List(12) { StitchType.SingleCrochet },
+            gaugeStandard = standard,
+            previousRing = ring1
+        )
+        val mesh = AdaptiveTessellator.tessellate(listOf(ring1, ring2), includePolarCap = true)
+
+        assertEquals(mesh.vertexCount * 3, mesh.vertexNormals.size)
+
+        for (v in 0 until mesh.vertexCount) {
+            val mag = mesh.getNormalMagnitude(v)
+            assertEquals("Cada normal debe ser unitaria (||n|| ~ 1.0)", 1.0f, mag, 0.01f)
+
+            if (v > 0) {
+                // Vértices de anillos: la normal debe apuntar hacia el exterior en el plano XY
+                val pos = mesh.getVertexPosition(v)
+                val norm = mesh.getVertexNormal(v)
+                val radialDot = norm[0] * pos[0] + norm[1] * pos[1]
+                assertTrue("La normal del vértice $v debe apuntar hacia el exterior radial: $radialDot", radialDot > 0f)
+            } else {
+                // Vértice polar (0): debe apuntar hacia abajo
+                val norm = mesh.getVertexNormal(0)
+                assertEquals(0f, norm[0], 0.01f)
+                assertEquals(0f, norm[1], 0.01f)
+                assertEquals(-1f, norm[2], 0.01f)
+            }
+        }
+    }
 }
