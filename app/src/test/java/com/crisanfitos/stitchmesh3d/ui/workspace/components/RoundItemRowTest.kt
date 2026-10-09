@@ -90,4 +90,16 @@ class RoundItemRowTest {
 
         job.cancel()
     }
+
+    @Test
+    fun `RoundItemUiModel preserves and exposes custom colorHex for round yarn zoning`() {
+        val model = RoundItemUiModel(
+            id = "round-color",
+            roundNumber = 2,
+            rawInstruction = "12 pb",
+            colorHex = "#52A474"
+        )
+
+        assertEquals("#52A474", model.colorHex)
+    }
 }
