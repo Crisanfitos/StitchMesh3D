@@ -75,9 +75,6 @@ fun CrochetViewport3D(
                 glbBuffer.rewind()
                 // Preservar la orientación y zoom actual de cámara para evitar saltos o parpadeos (RF-3.5)
                 val currentCameraBookmark = try { manipulator?.currentBookmark } catch (_: Throwable) { null }
-                try {
-                    viewer.destroyModel()
-                } catch (_: Throwable) {}
                 viewer.loadModelGlb(glbBuffer)
                 viewer.transformToUnitCube()
                 if (currentCameraBookmark != null) {
@@ -90,7 +87,10 @@ fun CrochetViewport3D(
             }
         } else {
             try {
-                viewer.destroyModel()
+                viewer.asset?.let { asset ->
+                    viewer.scene.removeEntities(asset.entities)
+                    viewer.scene.removeEntities(asset.lightEntities)
+                }
             } catch (_: Throwable) {}
         }
     }
@@ -100,6 +100,51 @@ fun CrochetViewport3D(
         val viewer = modelViewerRef[0] ?: return@LaunchedEffect
         val surfaceView = surfaceViewRef[0]
         applyCameraPreset(viewer, surfaceView, cameraPreset, manipulatorRef)
+    }
+
+    // Teardown unificado e idempotente para evitar SIGSEGV en gltfio al navegar fuera del Workspace (SM-060)
+    val performTeardown = remember {
+        {
+            if (!isReleasedRef[0]) {
+                isReleasedRef[0] = true
+
+                // 1. Detener incondicionalmente el loop de renderizado en Choreographer
+                try {
+                    choreographerCallbackRef[0]?.let { cb ->
+                        Choreographer.getInstance().removeFrameCallback(cb)
+                    }
+                } catch (_: Throwable) {}
+                choreographerCallbackRef[0] = null
+
+                // 2. Limpieza segura de luces y entidades del Scene sin invocar asyncCancelLoad() nativo
+                val viewer = modelViewerRef[0]
+                if (viewer != null) {
+                    val lights = lightEntitiesRef[0]
+                    for (i in lights.indices) {
+                        val light = lights[i]
+                        if (light != 0) {
+                            try {
+                                viewer.scene.removeEntity(light)
+                            } catch (_: Throwable) {}
+                            try {
+                                EntityManager.get().destroy(light)
+                            } catch (_: Throwable) {}
+                            lights[i] = 0
+                        }
+                    }
+                    try {
+                        viewer.asset?.let { asset ->
+                            viewer.scene.removeEntities(asset.entities)
+                            viewer.scene.removeEntities(asset.lightEntities)
+                        }
+                    } catch (_: Throwable) {}
+                }
+
+                modelViewerRef[0] = null
+                manipulatorRef[0] = null
+                surfaceViewRef[0] = null
+            }
+        }
     }
 
     Box(
@@ -177,11 +222,12 @@ fun CrochetViewport3D(
                         val frameCallback = object : Choreographer.FrameCallback {
                             override fun doFrame(frameTimeNanos: Long) {
                                 if (isReleasedRef[0]) return
-                                choreographerCallbackRef[0]?.let {
-                                    Choreographer.getInstance().postFrameCallback(it)
-                                }
+                                val cb = choreographerCallbackRef[0] ?: return
                                 try {
                                     viewer.render(frameTimeNanos)
+                                    if (!isReleasedRef[0]) {
+                                        Choreographer.getInstance().postFrameCallback(cb)
+                                    }
                                 } catch (_: Throwable) {
                                     // Protección contra invalidación transitoria de SwapChain
                                 }
@@ -201,72 +247,14 @@ fun CrochetViewport3D(
                 }
             },
             onRelease = {
-                isReleasedRef[0] = true
-                try {
-                    choreographerCallbackRef[0]?.let {
-                        Choreographer.getInstance().removeFrameCallback(it)
-                    }
-                } catch (_: Throwable) {}
-                choreographerCallbackRef[0] = null
-
-                val viewer = modelViewerRef[0]
-                if (viewer != null) {
-                    val lights = lightEntitiesRef[0]
-                    for (i in lights.indices) {
-                        val light = lights[i]
-                        if (light != 0) {
-                            try {
-                                viewer.scene.removeEntity(light)
-                            } catch (_: Throwable) {}
-                            try {
-                                EntityManager.get().destroy(light)
-                            } catch (_: Throwable) {}
-                            lights[i] = 0
-                        }
-                    }
-                    try {
-                        viewer.destroyModel()
-                    } catch (_: Throwable) {}
-                }
-                modelViewerRef[0] = null
-                manipulatorRef[0] = null
-                surfaceViewRef[0] = null
+                performTeardown()
             }
         )
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            isReleasedRef[0] = true
-            try {
-                choreographerCallbackRef[0]?.let {
-                    Choreographer.getInstance().removeFrameCallback(it)
-                }
-            } catch (_: Throwable) {}
-            choreographerCallbackRef[0] = null
-
-            val viewer = modelViewerRef[0]
-            if (viewer != null) {
-                val lights = lightEntitiesRef[0]
-                for (i in lights.indices) {
-                    val light = lights[i]
-                    if (light != 0) {
-                        try {
-                            viewer.scene.removeEntity(light)
-                        } catch (_: Throwable) {}
-                        try {
-                            EntityManager.get().destroy(light)
-                        } catch (_: Throwable) {}
-                        lights[i] = 0
-                    }
-                }
-                try {
-                    viewer.destroyModel()
-                } catch (_: Throwable) {}
-            }
-            modelViewerRef[0] = null
-            manipulatorRef[0] = null
-            surfaceViewRef[0] = null
+            performTeardown()
         }
     }
 }
