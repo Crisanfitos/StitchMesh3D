@@ -104,46 +104,9 @@ fun StitchMeshNavHost(
 
         // 4. Calibración de Tensión (10x10 cm Swatch)
         composable(route = StitchMeshDestination.TensionCalibration.route) {
-            TensionCalibrationPlaceholderScreen(
+            com.crisanfitos.stitchmesh3d.ui.tension.TensionCalibrationScreen(
                 onBackClick = { navController.popBackStack() }
             )
-        }
-    }
-}
-
-/**
- * Pantalla provisional de calibración de tensión para la ruta del grafo.
- */
-@Composable
-fun TensionCalibrationPlaceholderScreen(
-    onBackClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(StitchMeshNeutralDark),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Calibrador de Tensión 10×10 cm",
-                style = MaterialTheme.typography.titleLarge,
-                color = StitchMeshTextPrimary
-            )
-            Spacer(modifier = Modifier.size(16.dp))
-            Button(
-                onClick = onBackClick,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = StitchMeshTerracotta
-                )
-            ) {
-                Text(
-                    text = "Volver al Workspace",
-                    color = StitchMeshOnAccent
-                )
-            }
         }
     }
 }
