@@ -36,9 +36,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
+import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetTokenFormatter
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSageGreen
@@ -68,6 +71,22 @@ data class RoundItemUiModel(
 )
 
 /**
+ * Acción de edición originada fuera del campo de texto (teclado rápido de crochet).
+ * La fila activa la aplica sobre su propio cursor para mantener una única fuente de
+ * verdad de la selección entre teclado rápido y teclado nativo (SM-062).
+ */
+data class RoundExternalEdit(
+    val roundId: String,
+    val nonce: Long,
+    val action: Action
+) {
+    sealed interface Action {
+        data class InsertToken(val token: String) : Action
+        data object Backspace : Action
+    }
+}
+
+/**
  * Fila de edición de vuelta para el Workspace de StitchMesh 3D.
  *
  * Características principales:
@@ -89,10 +108,41 @@ fun RoundItemRow(
     debounceMs: Long = 90L,
     enabled: Boolean = true,
     requestInitialFocus: Boolean = false,
-    onFocusRequested: (() -> Unit)? = null
+    onFocusRequested: (() -> Unit)? = null,
+    externalEdit: RoundExternalEdit? = null
 ) {
-    var localText by remember(round.id, round.rawInstruction) {
-        mutableStateOf(round.rawInstruction)
+    var fieldValue by remember(round.id) {
+        mutableStateOf(TextFieldValue(round.rawInstruction, TextRange(round.rawInstruction.length)))
+    }
+    // Textos ya emitidos al ViewModel: sus ecos no deben pisar la edición en curso.
+    val sentTexts = remember(round.id) { HashSet<String>() }
+    var lastAppliedNonce by remember(round.id) { mutableStateOf(externalEdit?.nonce ?: 0L) }
+
+    // Adoptar solo cambios externos reales (p. ej. Quick-Fix), nunca el eco del propio tecleo
+    LaunchedEffect(round.rawInstruction) {
+        val upstream = round.rawInstruction
+        if (upstream != fieldValue.text && upstream !in sentTexts) {
+            fieldValue = TextFieldValue(upstream, TextRange(upstream.length))
+            sentTexts.clear()
+        }
+    }
+
+    // Aplicar ediciones del teclado rápido sobre la posición real del cursor
+    LaunchedEffect(externalEdit?.nonce) {
+        val edit = externalEdit
+        if (edit != null && edit.roundId == round.id && edit.nonce != lastAppliedNonce) {
+            lastAppliedNonce = edit.nonce
+            val sel = fieldValue.selection
+            val (newText, newCursor) = when (val action = edit.action) {
+                is RoundExternalEdit.Action.InsertToken ->
+                    CrochetTokenFormatter.insertTokenReplacingSelection(
+                        fieldValue.text, action.token, sel.start, sel.end
+                    )
+                RoundExternalEdit.Action.Backspace ->
+                    CrochetTokenFormatter.backspaceAt(fieldValue.text, sel.start, sel.end)
+            }
+            fieldValue = TextFieldValue(newText, TextRange(newCursor))
+        }
     }
 
     val focusRequester = remember { FocusRequester() }
@@ -104,12 +154,15 @@ fun RoundItemRow(
         }
     }
 
-    LaunchedEffect(localText) {
-        if (localText != round.rawInstruction) {
+    LaunchedEffect(fieldValue.text) {
+        if (fieldValue.text != round.rawInstruction) {
             delay(debounceMs)
-            onInstructionChanged(localText)
+            sentTexts.add(fieldValue.text)
+            onInstructionChanged(fieldValue.text)
         }
     }
+
+    val localText = fieldValue.text
 
     val railColor = when {
         localText.isBlank() -> StitchMeshSurfaceBorder
@@ -199,9 +252,9 @@ fun RoundItemRow(
                         )
                     }
                     BasicTextField(
-                        value = localText,
-                        onValueChange = { newText ->
-                            localText = newText
+                        value = fieldValue,
+                        onValueChange = { newValue ->
+                            fieldValue = newValue
                         },
                         enabled = enabled,
                         singleLine = true,

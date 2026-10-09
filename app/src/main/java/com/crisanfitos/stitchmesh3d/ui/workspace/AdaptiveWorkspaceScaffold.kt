@@ -70,7 +70,6 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceContainer
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceHigh
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetQuickKeyboard
-import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetTokenFormatter
 import com.crisanfitos.stitchmesh3d.ui.viewport.components.PeelSliderBar
 import com.crisanfitos.stitchmesh3d.ui.viewport.components.CameraPreset
 import com.crisanfitos.stitchmesh3d.ui.viewport.components.ViewportDimensionsUiModel
@@ -81,6 +80,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshYarnGold
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.LinterInlineErrorCard
+import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundExternalEdit
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemRow
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
 
@@ -210,21 +210,21 @@ fun AdaptiveWorkspaceScaffold(
         }
     }
 
-    fun handleToken(token: String) {
+    // Edición originada en el teclado rápido: se aplica sobre el cursor real del campo (SM-062)
+    var externalEdit by remember { mutableStateOf<RoundExternalEdit?>(null) }
+    var externalEditNonce by remember { mutableStateOf(0L) }
+
+    fun emitExternalEdit(action: RoundExternalEdit.Action) {
         val target = rounds.firstOrNull { it.id == activeRoundId } ?: rounds.lastOrNull()
         if (target != null) {
-            val updated = CrochetTokenFormatter.insertToken(target.rawInstruction, token)
-            onInstructionChanged(target.id, updated)
+            externalEditNonce += 1
+            externalEdit = RoundExternalEdit(target.id, externalEditNonce, action)
         }
     }
 
-    fun handleBackspace() {
-        val target = rounds.firstOrNull { it.id == activeRoundId } ?: rounds.lastOrNull()
-        if (target != null) {
-            val updated = CrochetTokenFormatter.deleteLastChar(target.rawInstruction)
-            onInstructionChanged(target.id, updated)
-        }
-    }
+    fun handleToken(token: String) = emitExternalEdit(RoundExternalEdit.Action.InsertToken(token))
+
+    fun handleBackspace() = emitExternalEdit(RoundExternalEdit.Action.Backspace)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -284,6 +284,7 @@ fun AdaptiveWorkspaceScaffold(
                                     onApplySuggestion = onApplySuggestion,
                                     newlyCreatedRoundId = newlyCreatedRoundId,
                                     onConsumeFocus = onConsumeFocus,
+                                    externalEdit = externalEdit,
                                     modifier = Modifier.weight(1f)
                                 )
 
@@ -444,6 +445,7 @@ fun AdaptiveWorkspaceScaffold(
                                         onApplySuggestion = onApplySuggestion,
                                         newlyCreatedRoundId = newlyCreatedRoundId,
                                         onConsumeFocus = onConsumeFocus,
+                                        externalEdit = externalEdit,
                                         modifier = Modifier.weight(1f)
                                     )
 
@@ -500,6 +502,7 @@ private fun RoundEditorPane(
     modifier: Modifier = Modifier,
     newlyCreatedRoundId: String? = null,
     onConsumeFocus: (() -> Unit)? = null,
+    externalEdit: RoundExternalEdit? = null,
     onDeleteRound: ((roundId: String) -> Unit)? = null,
     onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null
 ) {
@@ -551,6 +554,7 @@ private fun RoundEditorPane(
                     round = round.copy(isHighlighted = (round.id == activeRoundId)),
                     requestInitialFocus = (round.id == newlyCreatedRoundId),
                     onFocusRequested = onConsumeFocus,
+                    externalEdit = externalEdit,
                     onInstructionChanged = { newText ->
                         onRoundSelected(round.id)
                         onInstructionChanged(round.id, newText)

@@ -54,6 +54,35 @@ object CrochetTokenFormatter {
     }
 
     /**
+     * Inserta un token reemplazando la selección actual [selectionStart, selectionEnd)
+     * y devuelve el nuevo texto junto con la posición del cursor resultante (SM-062).
+     */
+    fun insertTokenReplacingSelection(
+        currentText: String,
+        token: String,
+        selectionStart: Int,
+        selectionEnd: Int
+    ): Pair<String, Int> {
+        val start = minOf(selectionStart, selectionEnd).coerceIn(0, currentText.length)
+        val end = maxOf(selectionStart, selectionEnd).coerceIn(0, currentText.length)
+        val withoutSelection = currentText.substring(0, start) + currentText.substring(end)
+        return insertTokenAtCursor(withoutSelection, token, start)
+    }
+
+    /**
+     * Borrado con semántica de cursor: elimina la selección si existe, o el carácter previo
+     * al cursor en caso contrario. Devuelve el texto y la nueva posición del cursor (SM-062).
+     */
+    fun backspaceAt(currentText: String, selectionStart: Int, selectionEnd: Int): Pair<String, Int> {
+        val start = minOf(selectionStart, selectionEnd).coerceIn(0, currentText.length)
+        val end = maxOf(selectionStart, selectionEnd).coerceIn(0, currentText.length)
+        if (start != end) {
+            return Pair(currentText.substring(0, start) + currentText.substring(end), start)
+        }
+        return deleteCharBeforeCursor(currentText, start)
+    }
+
+    /**
      * Elimina el carácter anterior a una posición específica de cursor.
      */
     fun deleteCharBeforeCursor(currentText: String, cursorPosition: Int): Pair<String, Int> {
