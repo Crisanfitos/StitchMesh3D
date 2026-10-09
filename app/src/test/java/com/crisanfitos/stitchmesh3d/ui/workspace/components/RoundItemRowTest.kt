@@ -102,4 +102,20 @@ class RoundItemRowTest {
 
         assertEquals("#52A474", model.colorHex)
     }
+
+    @Test
+    fun `rounds list can be sorted in descending order by roundNumber for editor UX`() {
+        val rounds = listOf(
+            RoundItemUiModel(id = "r1", roundNumber = 1, rawInstruction = "AM 6"),
+            RoundItemUiModel(id = "r2", roundNumber = 2, rawInstruction = "6 aum"),
+            RoundItemUiModel(id = "r3", roundNumber = 3, rawInstruction = "18 pb")
+        )
+
+        val sortedDescending = rounds.sortedByDescending { it.roundNumber }
+
+        assertEquals(3, sortedDescending.first().roundNumber)
+        assertEquals("r3", sortedDescending.first().id)
+        assertEquals(1, sortedDescending.last().roundNumber)
+        assertEquals("r1", sortedDescending.last().id)
+    }
 }

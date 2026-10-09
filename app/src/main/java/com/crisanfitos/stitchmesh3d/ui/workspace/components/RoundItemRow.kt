@@ -32,6 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.tooling.preview.Preview
@@ -85,10 +87,21 @@ fun RoundItemRow(
     onColorClick: (() -> Unit)? = null,
     onDeleteRound: (() -> Unit)? = null,
     debounceMs: Long = 90L,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    requestInitialFocus: Boolean = false,
+    onFocusRequested: (() -> Unit)? = null
 ) {
     var localText by remember(round.id, round.rawInstruction) {
         mutableStateOf(round.rawInstruction)
+    }
+
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(requestInitialFocus) {
+        if (requestInitialFocus) {
+            focusRequester.requestFocus()
+            onFocusRequested?.invoke()
+        }
     }
 
     LaunchedEffect(localText) {
@@ -196,6 +209,7 @@ fun RoundItemRow(
                         cursorBrush = SolidColor(StitchMeshTerracotta),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .focusRequester(focusRequester)
                             .onFocusChanged { focusState ->
                                 if (focusState.isFocused) {
                                     onRowClicked?.invoke()

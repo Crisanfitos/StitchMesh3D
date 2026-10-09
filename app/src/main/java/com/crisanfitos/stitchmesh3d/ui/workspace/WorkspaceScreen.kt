@@ -58,6 +58,8 @@ fun WorkspaceScreen(
         onDuplicatePart = { viewModel.processIntent(WorkspaceIntent.DuplicatePart(it)) },
         onDeletePart = { viewModel.processIntent(WorkspaceIntent.OpenDeletePartDialog(it)) },
         onApplySuggestion = { id, sug -> viewModel.processIntent(WorkspaceIntent.ApplySuggestion(id, sug)) },
+        newlyCreatedRoundId = state.newlyCreatedRoundId,
+        onConsumeFocus = { viewModel.processIntent(WorkspaceIntent.ConsumeInitialFocus) },
         modifier = modifier
     )
 

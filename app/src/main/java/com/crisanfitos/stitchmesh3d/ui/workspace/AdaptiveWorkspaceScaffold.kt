@@ -124,6 +124,8 @@ fun AdaptiveWorkspaceScaffold(
     onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null,
     onCalibrateTensionClick: (() -> Unit)? = null,
     onExportClick: (() -> Unit)? = null,
+    newlyCreatedRoundId: String? = null,
+    onConsumeFocus: (() -> Unit)? = null,
     viewportContent: (@Composable () -> Unit)? = null
 ) {
     var internalSelectedRoundId by remember {
@@ -269,19 +271,21 @@ fun AdaptiveWorkspaceScaffold(
                                 onDeletePart = onDeletePart
                             )
 
-                            RoundEditorPane(
-                                rounds = rounds,
-                                activeRoundId = activeRoundId,
-                                onRoundSelected = { id ->
-                                    internalSelectedRoundId = id
-                                    onRoundSelected?.invoke(id)
-                                },
-                                onInstructionChanged = onInstructionChanged,
-                                onAddRound = onAddRound,
-                                onDeleteRound = onDeleteRound,
-                                onApplySuggestion = onApplySuggestion,
-                                modifier = Modifier.weight(1f)
-                            )
+                                RoundEditorPane(
+                                    rounds = rounds,
+                                    activeRoundId = activeRoundId,
+                                    onRoundSelected = { id ->
+                                        internalSelectedRoundId = id
+                                        onRoundSelected?.invoke(id)
+                                    },
+                                    onInstructionChanged = onInstructionChanged,
+                                    onAddRound = onAddRound,
+                                    onDeleteRound = onDeleteRound,
+                                    onApplySuggestion = onApplySuggestion,
+                                    newlyCreatedRoundId = newlyCreatedRoundId,
+                                    onConsumeFocus = onConsumeFocus,
+                                    modifier = Modifier.weight(1f)
+                                )
 
                             // Teclado virtual contextual de crochet
                             if (isKeyboardVisible) {
@@ -438,6 +442,8 @@ fun AdaptiveWorkspaceScaffold(
                                         onAddRound = onAddRound,
                                         onDeleteRound = onDeleteRound,
                                         onApplySuggestion = onApplySuggestion,
+                                        newlyCreatedRoundId = newlyCreatedRoundId,
+                                        onConsumeFocus = onConsumeFocus,
                                         modifier = Modifier.weight(1f)
                                     )
 
@@ -492,22 +498,59 @@ private fun RoundEditorPane(
     onInstructionChanged: (roundId: String, newInstruction: String) -> Unit,
     onAddRound: () -> Unit,
     modifier: Modifier = Modifier,
+    newlyCreatedRoundId: String? = null,
+    onConsumeFocus: (() -> Unit)? = null,
     onDeleteRound: ((roundId: String) -> Unit)? = null,
     onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null
 ) {
+    // Vueltas ordenadas de forma descendente por número de vuelta (VN .. V1)
+    val sortedRounds = remember(rounds) {
+        rounds.sortedByDescending { it.roundNumber }
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // Botón "Añadir Vuelta" en la cima para creación inmediata de nuevas vueltas
+        item(key = "add_round_action_top") {
+            Button(
+                onClick = onAddRound,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = StitchMeshSurfaceHigh,
+                    contentColor = StitchMeshTerracotta
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Añadir Vuelta",
+                    style = CrochetTypography.tokenBadge,
+                    color = StitchMeshTerracotta
+                )
+            }
+        }
+
         items(
-            items = rounds,
+            items = sortedRounds,
             key = { it.id }
         ) { round ->
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 RoundItemRow(
                     round = round.copy(isHighlighted = (round.id == activeRoundId)),
+                    requestInitialFocus = (round.id == newlyCreatedRoundId),
+                    onFocusRequested = onConsumeFocus,
                     onInstructionChanged = { newText ->
                         onRoundSelected(round.id)
                         onInstructionChanged(round.id, newText)
@@ -542,33 +585,6 @@ private fun RoundEditorPane(
                         expectedBaseStitches = round.consumedStitches + 2 // Demostración de discrepancia
                     )
                 }
-            }
-        }
-
-        item {
-            Button(
-                onClick = onAddRound,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = StitchMeshSurfaceHigh,
-                    contentColor = StitchMeshTerracotta
-                ),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Añadir Vuelta",
-                    style = CrochetTypography.tokenBadge,
-                    color = StitchMeshTerracotta
-                )
             }
         }
     }
