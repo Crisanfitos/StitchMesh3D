@@ -181,7 +181,14 @@ fun AdaptiveWorkspaceScaffold(
                 var prevRing: RingProfile? = null
                 for ((idx, r) in effectiveRounds.withIndex()) {
                     val parsed = CrochetParser.parse(r.rawInstruction)
-                    val stitches = parsed.ast?.flatten()?.map { it.stitchType } ?: emptyList()
+                    val stitches = parsed.ast?.flatten()?.flatMap { node ->
+                        if (node.stitchType is com.crisanfitos.stitchmesh3d.core.engine.model.StitchType.MagicRing) {
+                            val count = (node.stitchType as com.crisanfitos.stitchmesh3d.core.engine.model.StitchType.MagicRing).stitchCount
+                            List(count) { com.crisanfitos.stitchmesh3d.core.engine.model.StitchType.SingleCrochet }
+                        } else {
+                            listOf(node.stitchType)
+                        }
+                    } ?: emptyList()
                     if (stitches.isNotEmpty()) {
                         val ring = RingProfileGenerator.generateRing(idx + 1, stitches, gauge, prevRing)
                         ringProfiles.add(ring)
@@ -189,7 +196,7 @@ fun AdaptiveWorkspaceScaffold(
                     }
                 }
                 if (ringProfiles.isNotEmpty()) {
-                    val mesh = AdaptiveTessellator.tessellate(ringProfiles)
+                    val mesh = AdaptiveTessellator.tessellate(ringProfiles, includePolarCap = true)
                     viewportViewModel.processIntent(ViewportIntent.SetMeshGeometry(mesh))
                 }
             } catch (_: Throwable) {
@@ -500,9 +507,13 @@ private fun RoundEditorPane(
                 RoundItemRow(
                     round = round.copy(isHighlighted = (round.id == activeRoundId)),
                     onInstructionChanged = { newText ->
+                        onRoundSelected(round.id)
                         onInstructionChanged(round.id, newText)
                     },
                     onRowClicked = {
+                        onRoundSelected(round.id)
+                    },
+                    onColorClick = {
                         onRoundSelected(round.id)
                     },
                     onDeleteRound = if (onDeleteRound != null) {
