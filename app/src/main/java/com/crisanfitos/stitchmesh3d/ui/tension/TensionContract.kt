@@ -8,6 +8,32 @@ import com.crisanfitos.stitchmesh3d.core.mvi.ViewIntent
 import com.crisanfitos.stitchmesh3d.core.mvi.ViewState
 
 /**
+ * Diagnóstico cualitativo de tensión para el comportamiento de la pieza en crochet/amigurumi.
+ */
+enum class TensionDiagnosis {
+    BALANCED,
+    LOOSE,
+    TIGHT
+}
+
+/**
+ * Comparativa paramétrica entre el estándar CYC teórico y la muestra calibrada del usuario.
+ */
+data class TensionScaleComparison(
+    val widthDeviationPercent: Float,
+    val heightDeviationPercent: Float,
+    val volumeDeviationPercent: Float,
+    val widthScaleRatio: Float,
+    val heightScaleRatio: Float,
+    val volumeScaleRatio: Float,
+    val diagnosis: TensionDiagnosis,
+    val diagnosisSummary: String,
+    val hookSuggestion: String?,
+    val theoreticalDimensionsMm: Pair<Float, Float>,
+    val calibratedDimensionsMm: Pair<Float, Float>
+)
+
+/**
  * Estado inmutable de la pantalla de Calibración de Tensión (Muestra 10x10 cm).
  */
 data class TensionState(
@@ -16,6 +42,7 @@ data class TensionState(
     val stitchesIn10Cm: Int = 16,
     val roundsIn10Cm: Int = 20,
     val calibrationResult: TensionCalibrationResult? = null,
+    val scaleComparison: TensionScaleComparison? = null,
     val errorMessage: String? = null,
     val isSaved: Boolean = false
 ) : ViewState

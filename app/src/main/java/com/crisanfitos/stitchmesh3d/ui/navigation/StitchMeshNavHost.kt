@@ -102,9 +102,9 @@ fun StitchMeshNavHost(
             )
         }
 
-        // 4. Calibración de Tensión (10x10 cm Swatch)
+        // 4. Calibración de Tensión (10x10 cm Swatch) & Comparativa Paramétrica
         composable(route = StitchMeshDestination.TensionCalibration.route) {
-            com.crisanfitos.stitchmesh3d.ui.tension.TensionCalibrationScreen(
+            com.crisanfitos.stitchmesh3d.ui.tension.TensionCalibratorScreen(
                 onBackClick = { navController.popBackStack() }
             )
         }
