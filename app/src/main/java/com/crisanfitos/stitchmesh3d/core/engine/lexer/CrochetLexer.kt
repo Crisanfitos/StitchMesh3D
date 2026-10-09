@@ -1,5 +1,6 @@
 package com.crisanfitos.stitchmesh3d.core.engine.lexer
 
+import com.crisanfitos.stitchmesh3d.core.engine.color.CrochetColorHelper
 import com.crisanfitos.stitchmesh3d.core.engine.model.StitchRegistry
 import com.crisanfitos.stitchmesh3d.core.engine.model.TopologyFlag
 import java.util.Locale
@@ -21,6 +22,12 @@ object CrochetLexer {
     // Ejemplos: "(12)", "( 18 pts )", "(24 puntos)", "(30 sts)", "(approx. 12)", "[12]"
     private val declaredCountRegex = Regex(
         """\s*(?:[\(\[]\s*(?:approx\.?|aprox\.?)?\s*(\d+)\s*(?:pts?|puntos?|sts?|stitches?)?\s*[\)\]])\s*$""",
+        RegexOption.IGNORE_CASE
+    )
+
+    // Regex para prefijo de etiqueta de color (ej. "Color A:", "Col 1:")
+    private val colorLabelPrefixRegex = Regex(
+        """^(?:color|col)\s*([a-zA-Z0-9_-]+)\s*:""",
         RegexOption.IGNORE_CASE
     )
 
@@ -108,6 +115,47 @@ object CrochetLexer {
 
             val absoluteIndex = offset + cursor
 
+            // Detección de prefijo de etiqueta de color: "Color A:", "Col 1:"
+            val colorLabelMatch = colorLabelPrefixRegex.find(text.substring(cursor))
+            if (colorLabelMatch != null) {
+                val colorVal = colorLabelMatch.groupValues[1]
+                val raw = colorLabelMatch.value
+                val matchLen = raw.length
+                tokens.add(
+                    CrochetToken.ColorToken(
+                        hexOrName = CrochetColorHelper.normalizeToHex(colorVal),
+                        raw = raw,
+                        startIndex = absoluteIndex,
+                        endIndex = absoluteIndex + matchLen
+                    )
+                )
+                cursor += matchLen
+                continue
+            }
+
+            // Detección de código hexadecimal directo: "#FFFFFF", "#E06D53"
+            if (char == '#') {
+                val hexStart = cursor
+                cursor++
+                while (cursor < len && text[cursor].isLetterOrDigit()) {
+                    cursor++
+                }
+                val hexCandidate = text.substring(hexStart, cursor)
+                if (CrochetColorHelper.isColorIdentifier(hexCandidate)) {
+                    tokens.add(
+                        CrochetToken.ColorToken(
+                            hexOrName = CrochetColorHelper.normalizeToHex(hexCandidate),
+                            raw = hexCandidate,
+                            startIndex = absoluteIndex,
+                            endIndex = offset + cursor
+                        )
+                    )
+                    continue
+                } else {
+                    cursor = hexStart + 1
+                }
+            }
+
             // Comas y delimitadores
             when (char) {
                 ',' -> {
@@ -116,6 +164,23 @@ object CrochetLexer {
                     continue
                 }
                 '[' -> {
+                    val closeIdx = text.indexOf(']', cursor)
+                    if (closeIdx != -1) {
+                        val inner = text.substring(cursor + 1, closeIdx).trim()
+                        if (CrochetColorHelper.isColorIdentifier(inner)) {
+                            val raw = text.substring(cursor, closeIdx + 1)
+                            tokens.add(
+                                CrochetToken.ColorToken(
+                                    hexOrName = CrochetColorHelper.normalizeToHex(inner),
+                                    raw = raw,
+                                    startIndex = absoluteIndex,
+                                    endIndex = offset + closeIdx + 1
+                                )
+                            )
+                            cursor = closeIdx + 1
+                            continue
+                        }
+                    }
                     tokens.add(CrochetToken.BracketOpen(isSquare = true, absoluteIndex, absoluteIndex + 1))
                     cursor++
                     continue
@@ -126,6 +191,23 @@ object CrochetLexer {
                     continue
                 }
                 '(' -> {
+                    val closeIdx = text.indexOf(')', cursor)
+                    if (closeIdx != -1) {
+                        val inner = text.substring(cursor + 1, closeIdx).trim()
+                        if (CrochetColorHelper.isColorIdentifier(inner)) {
+                            val raw = text.substring(cursor, closeIdx + 1)
+                            tokens.add(
+                                CrochetToken.ColorToken(
+                                    hexOrName = CrochetColorHelper.normalizeToHex(inner),
+                                    raw = raw,
+                                    startIndex = absoluteIndex,
+                                    endIndex = offset + closeIdx + 1
+                                )
+                            )
+                            cursor = closeIdx + 1
+                            continue
+                        }
+                    }
                     tokens.add(CrochetToken.BracketOpen(isSquare = false, absoluteIndex, absoluteIndex + 1))
                     cursor++
                     continue

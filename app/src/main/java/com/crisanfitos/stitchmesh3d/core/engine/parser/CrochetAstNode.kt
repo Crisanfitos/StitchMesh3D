@@ -20,36 +20,45 @@ sealed interface CrochetAstNode {
 
         /**
          * Aplana recursivamente el AST (expandiendo repeticiones y multiplicadores)
-         * para obtener la secuencia lineal exacta de todas las puntadas elementales de la vuelta.
+         * para obtener la secuencia lineal exacta de todas las puntadas elementales de la vuelta,
+         * preservando la asignación de color individual (Jacquard / Tapestry Crochet).
          */
-        fun flatten(): List<StitchInstance> {
+        fun flatten(defaultColorHex: String? = null): List<StitchInstance> {
             val result = mutableListOf<StitchInstance>()
             var currentIndex = 0
 
-            fun expand(node: CrochetAstNode) {
+            fun expand(node: CrochetAstNode, inheritedColor: String?) {
                 when (node) {
                     is StitchNode -> {
+                        val color = node.colorHex ?: inheritedColor ?: defaultColorHex
                         repeat(node.count) {
-                            result.add(StitchInstance(node.stitchType, currentIndex++))
+                            result.add(
+                                StitchInstance(
+                                    stitchType = node.stitchType,
+                                    indexInRound = currentIndex++,
+                                    colorHex = color
+                                )
+                            )
                         }
                     }
                     is RepeatNode -> {
+                        val color = node.colorHex ?: inheritedColor
                         repeat(node.times) {
                             for (child in node.children) {
-                                expand(child)
+                                expand(child, color)
                             }
                         }
                     }
                     is RoundNode -> {
                         for (child in node.children) {
-                            expand(child)
+                            expand(child, inheritedColor)
                         }
                     }
                 }
             }
 
             for (child in children) {
-                expand(child)
+                expand(child, null)
             }
 
             return result
@@ -74,7 +83,8 @@ sealed interface CrochetAstNode {
      */
     data class StitchNode(
         val stitchType: StitchType,
-        val count: Int = 1
+        val count: Int = 1,
+        val colorHex: String? = null
     ) : CrochetAstNode {
         init {
             require(count > 0) { "El contador de puntada debe ser > 0: $count" }
@@ -87,7 +97,8 @@ sealed interface CrochetAstNode {
      */
     data class RepeatNode(
         val children: List<CrochetAstNode>,
-        val times: Int
+        val times: Int,
+        val colorHex: String? = null
     ) : CrochetAstNode {
         init {
             require(times > 0) { "El multiplicador de repetición debe ser > 0: $times" }

@@ -97,6 +97,8 @@ object GlbMeshBuilder {
         val g = effectiveColor.green
         val b = effectiveColor.blue
 
+        val hasVertexColors = !isWireframe && mesh.vertexColors.isNotEmpty() && mesh.vertexColors.size >= vertexCount * 4
+
         val jsonString: String
         val totalBinLength: Int
 
@@ -188,8 +190,127 @@ object GlbMeshBuilder {
   ]
 }
 """.trim()
+        } else if (hasVertexColors) {
+            // SÓLIDO PBR MULTICROMÁTICO (Jacquard / Tapestry / SM-069): Primitiva TRIANGLES con COLOR_0
+            val normByteLength = vertexCount * 3 * 4
+            val colorByteLength = vertexCount * 4 * 4
+            val posOffset = 0
+            val normOffset = posByteLength
+            val colorOffset = posByteLength + normByteLength
+            val indOffset = colorOffset + colorByteLength
+            totalBinLength = indOffset + indByteLength
+
+            jsonString = """
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "StitchMesh3D Wool PBR Multicolored Generator"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [0]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "materials": [
+    {
+      "name": "WoolPbrMaterial",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+        "roughnessFactor": $roughness,
+        "metallicFactor": 0.0
+      },
+      "doubleSided": true
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "COLOR_0": 2
+          },
+          "indices": 3,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC3",
+      "min": [$minX, $minY, $minZ],
+      "max": [$maxX, $maxY, $maxZ]
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 0,
+      "componentType": 5123,
+      "count": $indexCount,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": $posOffset,
+      "byteLength": $posByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $normOffset,
+      "byteLength": $normByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $colorOffset,
+      "byteLength": $colorByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $indOffset,
+      "byteLength": $rawIndByteLength,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": $totalBinLength
+    }
+  ]
+}
+""".trim()
         } else {
-            // SÓLIDO PBR: Primitiva TRIANGLES (mode 4) con normales y WoolPbrMaterial
+            // SÓLIDO PBR MONOCROMÁTICO: Primitiva TRIANGLES (mode 4) con normales y WoolPbrMaterial
             val normByteLength = vertexCount * 3 * 4
             val posOffset = 0
             val normOffset = posByteLength
@@ -333,6 +454,14 @@ object GlbMeshBuilder {
             for (i in 0 until (vertexCount * 3)) {
                 val n = if (i < mesh.vertexNormals.size) mesh.vertexNormals[i] else 0f
                 byteBuffer.putFloat(n)
+            }
+
+            if (hasVertexColors) {
+                // Payload binario: COLORS (Float4: RGBA)
+                for (i in 0 until (vertexCount * 4)) {
+                    val c = if (i < mesh.vertexColors.size) mesh.vertexColors[i] else 1.0f
+                    byteBuffer.putFloat(c)
+                }
             }
         }
 

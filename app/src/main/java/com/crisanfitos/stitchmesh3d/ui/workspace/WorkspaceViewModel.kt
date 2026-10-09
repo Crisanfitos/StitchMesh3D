@@ -544,17 +544,23 @@ class WorkspaceViewModel @Inject constructor(
                         for ((idx, r) in effectiveRounds.withIndex()) {
                             val parsed = CrochetParser.parse(r.rawInstruction)
                             // Expansión polar de Anillo Mágico a N puntos individuales para generar perfil circunferencial completo
-                            val stitches = parsed.ast?.flatten()?.flatMap { node ->
-                                if (node.stitchType is StitchType.MagicRing) {
-                                    val count = (node.stitchType as StitchType.MagicRing).stitchCount
-                                    List(count) { StitchType.SingleCrochet }
+                            val instances = parsed.ast?.flatten()?.flatMap { inst ->
+                                if (inst.stitchType is StitchType.MagicRing) {
+                                    val count = (inst.stitchType as StitchType.MagicRing).stitchCount
+                                    List(count) {
+                                        com.crisanfitos.stitchmesh3d.core.engine.parser.StitchInstance(
+                                            stitchType = StitchType.SingleCrochet,
+                                            indexInRound = 0,
+                                            colorHex = inst.colorHex
+                                        )
+                                    }
                                 } else {
-                                    listOf(node.stitchType)
+                                    listOf(inst)
                                 }
                             } ?: emptyList()
 
-                            if (stitches.isNotEmpty()) {
-                                val ring = RingProfileGenerator.generateRing(idx + 1, stitches, gauge, prevRing)
+                            if (instances.isNotEmpty()) {
+                                val ring = RingProfileGenerator.generateRingFromInstances(idx + 1, instances, gauge, prevRing)
                                 ringProfiles.add(ring)
                                 prevRing = ring
                             }

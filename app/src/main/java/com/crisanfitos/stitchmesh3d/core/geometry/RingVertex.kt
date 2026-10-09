@@ -23,5 +23,6 @@ data class RingVertex(
     val y: Double,
     val z: Double,
     val stitchType: StitchType,
-    val normalBumpMm: Double = 0.0
+    val normalBumpMm: Double = 0.0,
+    val colorHex: String? = null
 )

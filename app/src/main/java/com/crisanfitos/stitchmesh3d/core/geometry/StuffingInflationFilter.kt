@@ -197,7 +197,8 @@ object StuffingInflationFilter {
             indices = indices,
             vertexCount = vertexCount,
             triangleCount = mesh.triangleCount,
-            vertexNormals = finalNormals
+            vertexNormals = finalNormals,
+            vertexColors = mesh.vertexColors
         )
     }
 

@@ -133,7 +133,8 @@ object RingProfileGenerator {
                     y = y,
                     z = z,
                     stitchType = inst.stitchType,
-                    normalBumpMm = normalBump
+                    normalBumpMm = normalBump,
+                    colorHex = inst.colorHex
                 )
             )
         }

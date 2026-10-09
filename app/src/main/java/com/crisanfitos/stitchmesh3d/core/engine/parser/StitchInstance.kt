@@ -11,7 +11,8 @@ import com.crisanfitos.stitchmesh3d.core.engine.model.TopologyFlag
  */
 data class StitchInstance(
     val stitchType: StitchType,
-    val indexInRound: Int
+    val indexInRound: Int,
+    val colorHex: String? = null
 ) {
     val consumedStitches: Int get() = stitchType.consumedStitches
     val producedStitches: Int get() = stitchType.producedStitches
