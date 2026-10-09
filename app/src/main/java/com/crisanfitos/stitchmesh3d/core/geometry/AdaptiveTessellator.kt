@@ -2,6 +2,8 @@ package com.crisanfitos.stitchmesh3d.core.geometry
 
 import com.crisanfitos.stitchmesh3d.core.engine.model.TopologyFlag
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
@@ -119,8 +121,17 @@ object AdaptiveTessellator {
         val indicesArray = ShortArray(indexList.size) { indexList[it] }
         val triangleCount = indicesArray.size / 3
 
-        // 4. Cálculo ponderado de normales por área de caras adyacentes (RF-3.2)
-        val normals = calculateAreaWeightedNormals(positions, indicesArray, totalVertices, triangleCount)
+        // 4. Cálculo ponderado de normales por área de caras adyacentes y suavizado analítico de revolución (RF-3.2)
+        val normals = calculateSmoothAndAreaWeightedNormals(
+            positions = positions,
+            indices = indicesArray,
+            vertexCount = totalVertices,
+            triangleCount = triangleCount,
+            validRings = validRings,
+            hasPole = hasPole,
+            inIndices = inIndices,
+            outIndices = outIndices
+        )
 
         return MeshGeometry(
             vertexPositions = positions,
@@ -132,16 +143,21 @@ object AdaptiveTessellator {
     }
 
     /**
-     * Calcula normales de superficie acumuladas y ponderadas por área de triángulo,
-     * garantizando magnitud unitaria ||n|| = 1.0 +/- 0.001 en todo el búfer.
+     * Calcula normales de superficie combinando el perfil analítico de revolución (para eliminar
+     * el efecto de facetado angular y de papel arrugado) con las normales de caras triangulares acumuladas.
+     * Garantiza magnitud unitaria ||n|| = 1.0 +/- 0.001 en todo el búfer.
      */
-    private fun calculateAreaWeightedNormals(
+    private fun calculateSmoothAndAreaWeightedNormals(
         positions: FloatArray,
         indices: ShortArray,
         vertexCount: Int,
-        triangleCount: Int
+        triangleCount: Int,
+        validRings: List<RingProfile>,
+        hasPole: Boolean,
+        inIndices: Array<ShortArray>,
+        outIndices: Array<ShortArray>
     ): FloatArray {
-        val normalAccum = FloatArray(vertexCount * 3)
+        val faceNormalAccum = FloatArray(vertexCount * 3)
 
         for (t in 0 until triangleCount) {
             val i0 = (indices[t * 3].toInt() and 0xFFFF)
@@ -168,74 +184,134 @@ object AdaptiveTessellator {
             val e2y = v2y - v0y
             val e2z = v2z - v0z
 
-            // Producto vectorial (magnitud es proporcional al doble del área del triángulo)
+            // Producto vectorial
             val nx = e1y * e2z - e1z * e2y
             val ny = e1z * e2x - e1x * e2z
             val nz = e1x * e2y - e1y * e2x
 
-            normalAccum[i0 * 3] += nx
-            normalAccum[i0 * 3 + 1] += ny
-            normalAccum[i0 * 3 + 2] += nz
+            faceNormalAccum[i0 * 3] += nx
+            faceNormalAccum[i0 * 3 + 1] += ny
+            faceNormalAccum[i0 * 3 + 2] += nz
 
-            normalAccum[i1 * 3] += nx
-            normalAccum[i1 * 3 + 1] += ny
-            normalAccum[i1 * 3 + 2] += nz
+            faceNormalAccum[i1 * 3] += nx
+            faceNormalAccum[i1 * 3 + 1] += ny
+            faceNormalAccum[i1 * 3 + 2] += nz
 
-            normalAccum[i2 * 3] += nx
-            normalAccum[i2 * 3 + 1] += ny
-            normalAccum[i2 * 3 + 2] += nz
+            faceNormalAccum[i2 * 3] += nx
+            faceNormalAccum[i2 * 3 + 1] += ny
+            faceNormalAccum[i2 * 3 + 2] += nz
         }
 
         val normals = FloatArray(vertexCount * 3)
-        for (v in 0 until vertexCount) {
-            val nx = normalAccum[v * 3]
-            val ny = normalAccum[v * 3 + 1]
-            val nz = normalAccum[v * 3 + 2]
 
-            val len = sqrt(nx * nx + ny * ny + nz * nz)
-            if (len > 1e-6f) {
-                normals[v * 3] = nx / len
-                normals[v * 3 + 1] = ny / len
-                normals[v * 3 + 2] = nz / len
-            } else {
-                // Fallback para vértices duplicados en extremos abiertos o sin caras acumuladas
-                var foundSibling = false
-                val px = positions[v * 3]
-                val py = positions[v * 3 + 1]
-                val pz = positions[v * 3 + 2]
+        // 1. Normal del vértice polar (apunta hacia el fondo exterior del casquete)
+        if (hasPole && vertexCount > 0) {
+            normals[0] = 0.0f
+            normals[1] = 0.0f
+            normals[2] = -1.0f
+        }
 
-                for (other in 0 until vertexCount) {
-                    if (other != v &&
-                        abs(positions[other * 3] - px) < 1e-4f &&
-                        abs(positions[other * 3 + 1] - py) < 1e-4f &&
-                        abs(positions[other * 3 + 2] - pz) < 1e-4f
-                    ) {
-                        val onx = normalAccum[other * 3]
-                        val ony = normalAccum[other * 3 + 1]
-                        val onz = normalAccum[other * 3 + 2]
-                        val olen = sqrt(onx * onx + ony * ony + onz * onz)
-                        if (olen > 1e-6f) {
-                            normals[v * 3] = onx / olen
-                            normals[v * 3 + 1] = ony / olen
-                            normals[v * 3 + 2] = onz / olen
-                            foundSibling = true
-                            break
-                        }
-                    }
+        // 2. Cálculo para cada anillo
+        for (r in validRings.indices) {
+            val ring = validRings[r]
+            val prevRing = if (r > 0) validRings[r - 1] else null
+            val nextRing = if (r < validRings.size - 1) validRings[r + 1] else null
+
+            val rPrev = prevRing?.meanRadiusMm ?: 0.0
+            val rNext = nextRing?.meanRadiusMm ?: ring.meanRadiusMm
+            val zPrev = prevRing?.minZ ?: (validRings[0].minZ - validRings[0].meanRadiusMm * 0.25).coerceAtLeast(0.0)
+            val zNext = nextRing?.maxZ ?: ring.maxZ
+
+            val dr = rNext - rPrev
+            val dz = (zNext - zPrev).coerceAtLeast(0.05)
+            val pLen = sqrt(dr * dr + dz * dz).coerceAtLeast(1e-4)
+            val profCos = (dz / pLen).toFloat()
+            val profSin = (-dr / pLen).toFloat()
+
+            for (j in ring.vertices.indices) {
+                val v = ring.vertices[j]
+                val cosT = cos(v.theta).toFloat()
+                val sinT = sin(v.theta).toFloat()
+
+                val revNx = profCos * cosT
+                val revNy = profCos * sinT
+                val revNz = profSin
+
+                val inIdx = inIndices[r][j].toInt()
+                val outIdx = outIndices[r][j].toInt()
+                val isBlo = v.stitchType.topologyFlags.contains(TopologyFlag.BLO)
+
+                // Extraer normal acumulada de caras para inIdx
+                val fnx = faceNormalAccum[inIdx * 3]
+                val fny = faceNormalAccum[inIdx * 3 + 1]
+                val fnz = faceNormalAccum[inIdx * 3 + 2]
+                val flen = sqrt(fnx * fnx + fny * fny + fnz * fnz)
+
+                val faceNx = if (flen > 1e-6f) fnx / flen else revNx
+                val faceNy = if (flen > 1e-6f) fny / flen else revNy
+                val faceNz = if (flen > 1e-6f) fnz / flen else revNz
+
+                val blendNx: Float
+                val blendNy: Float
+                val blendNz: Float
+
+                if (isBlo) {
+                    // BLO: Conservar la normal de cara nítida para enfatizar la arista viva
+                    blendNx = faceNx
+                    blendNy = faceNy
+                    blendNz = faceNz
+                } else if (v.normalBumpMm > 0) {
+                    // Relieve volumétrico (bobble/popcorn): 40% superficie suave + 60% relieve
+                    blendNx = 0.40f * revNx + 0.60f * faceNx
+                    blendNy = 0.40f * revNy + 0.60f * faceNy
+                    blendNz = 0.40f * revNz + 0.60f * faceNz
+                } else {
+                    // Puntadas estándar: 80% superficie analítica suave + 20% caras adyacentes
+                    blendNx = 0.80f * revNx + 0.20f * faceNx
+                    blendNy = 0.80f * revNy + 0.20f * faceNy
+                    blendNz = 0.80f * revNz + 0.20f * faceNz
                 }
 
-                if (!foundSibling) {
-                    val r = sqrt(px * px + py * py)
-                    if (r > 1e-4f) {
-                        normals[v * 3] = px / r
-                        normals[v * 3 + 1] = py / r
-                        normals[v * 3 + 2] = 0f
+                val blen = sqrt(blendNx * blendNx + blendNy * blendNy + blendNz * blendNz)
+                if (blen > 1e-6f) {
+                    normals[inIdx * 3] = blendNx / blen
+                    normals[inIdx * 3 + 1] = blendNy / blen
+                    normals[inIdx * 3 + 2] = blendNz / blen
+                } else {
+                    normals[inIdx * 3] = revNx
+                    normals[inIdx * 3 + 1] = revNy
+                    normals[inIdx * 3 + 2] = revNz
+                }
+
+                // Vértice duplicado para BLO
+                if (isBlo && outIdx != inIdx) {
+                    val ofnx = faceNormalAccum[outIdx * 3]
+                    val ofny = faceNormalAccum[outIdx * 3 + 1]
+                    val ofnz = faceNormalAccum[outIdx * 3 + 2]
+                    val oflen = sqrt(ofnx * ofnx + ofny * ofny + ofnz * ofnz)
+                    if (oflen > 1e-6f) {
+                        normals[outIdx * 3] = ofnx / oflen
+                        normals[outIdx * 3 + 1] = ofny / oflen
+                        normals[outIdx * 3 + 2] = ofnz / oflen
                     } else {
-                        normals[v * 3] = 0f
-                        normals[v * 3 + 1] = 0f
-                        normals[v * 3 + 2] = -1f
+                        normals[outIdx * 3] = normals[inIdx * 3]
+                        normals[outIdx * 3 + 1] = normals[inIdx * 3 + 1]
+                        normals[outIdx * 3 + 2] = normals[inIdx * 3 + 2]
                     }
                 }
+            }
+        }
+
+        // Si hubiera algún vértice no indexado por los anillos, asegurar normal unitaria
+        for (v in 0 until vertexCount) {
+            val nx = normals[v * 3]
+            val ny = normals[v * 3 + 1]
+            val nz = normals[v * 3 + 2]
+            val len = sqrt(nx * nx + ny * ny + nz * nz)
+            if (len < 1e-6f) {
+                normals[v * 3] = 0f
+                normals[v * 3 + 1] = 0f
+                normals[v * 3 + 2] = 1f
             }
         }
 

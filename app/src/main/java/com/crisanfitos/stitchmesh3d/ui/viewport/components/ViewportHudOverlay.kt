@@ -3,6 +3,8 @@ package com.crisanfitos.stitchmesh3d.ui.viewport.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -122,157 +124,175 @@ fun ViewportHudOverlay(
             onToggleUnit = onToggleUnitSystem
         )
 
-        // Esquina superior izquierda: Cotas métricas y telemetría
+        // Barra superior de controles HUD estructurada en dos filas para evitar colisiones
         Column(
-            modifier = Modifier.align(Alignment.TopStart),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Botón de retorno al editor si está activo (modo fullscreen)
-            if (onBackClick != null) {
-                Box(
+            // Fila 1: Telemetría / Retorno (Izquierda) + Acciones Cotas y Pantalla Completa (Derecha)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Lado izquierdo: Botón volver (si aplica) o cotas métricas y telemetría
+                Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(StitchMeshSurfaceContainer.copy(alpha = 0.90f))
-                        .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
-                        .clickable(onClick = onBackClick)
-                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    if (onBackClick != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(StitchMeshSurfaceContainer.copy(alpha = 0.90f))
+                                .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
+                                .clickable(onClick = onBackClick)
+                                .padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Volver al editor",
+                                    tint = StitchMeshTerracotta,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Volver al Editor",
+                                    style = CrochetTypography.tokenBadge,
+                                    color = StitchMeshTextPrimary
+                                )
+                            }
+                        }
+                    }
+
+                    // Ficha de cotas dimensionales
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(StitchMeshSurfaceContainer.copy(alpha = 0.90f))
+                            .border(
+                                width = 1.dp,
+                                color = if (showDimensionCallouts) StitchMeshTerracotta.copy(alpha = 0.5f) else StitchMeshSurfaceBorder,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            .then(if (onToggleUnitSystem != null) Modifier.clickable(onClick = onToggleUnitSystem) else Modifier)
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver al editor",
-                            tint = StitchMeshTerracotta,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SquareFoot,
+                                contentDescription = "Cotas métricas",
+                                tint = StitchMeshTerracotta,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = if (useCentimeters) dimensions.formattedDimensionsCm() else dimensions.formattedDimensions(),
+                                style = CrochetTypography.matrixValue,
+                                color = StitchMeshTextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    // Badge de telemetría de malla
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(StitchMeshSurfaceHigh.copy(alpha = 0.85f))
+                            .border(
+                                width = 1.dp,
+                                color = StitchMeshSurfaceBorder,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(horizontal = 7.dp, vertical = 4.dp)
+                    ) {
                         Text(
-                            text = "Volver al Editor",
+                            text = "${telemetry.polygonCount} tris · ${telemetry.vertexCount} verts · ${telemetry.fps} FPS",
                             style = CrochetTypography.tokenBadge,
-                            color = StitchMeshTextPrimary
+                            color = StitchMeshYarnGold,
+                            fontSize = 10.sp
                         )
                     }
                 }
-            }
+                Spacer(modifier = Modifier.width(6.dp))
 
-            // Ficha de cotas dimensionales
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(StitchMeshSurfaceContainer.copy(alpha = 0.90f))
-                    .border(
-                        width = 1.dp,
-                        color = if (showDimensionCallouts) StitchMeshTerracotta.copy(alpha = 0.5f) else StitchMeshSurfaceBorder,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    .then(if (onToggleUnitSystem != null) Modifier.clickable(onClick = onToggleUnitSystem) else Modifier)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            ) {
+                // Lado derecho: Conmutadores de acción (Cotas CAD y Pantalla completa)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.SquareFoot,
-                        contentDescription = "Cotas métricas",
-                        tint = StitchMeshTerracotta,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        text = if (useCentimeters) dimensions.formattedDimensionsCm() else dimensions.formattedDimensions(),
-                        style = CrochetTypography.matrixValue,
-                        color = StitchMeshTextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
+                    // Conmutador de cotas CAD
+                    if (onToggleDimensionCallouts != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (showDimensionCallouts) {
+                                        StitchMeshTerracotta.copy(alpha = 0.20f)
+                                    } else {
+                                        StitchMeshSurfaceContainer.copy(alpha = 0.90f)
+                                    }
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (showDimensionCallouts) StitchMeshTerracotta else StitchMeshSurfaceBorder,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                        ) {
+                            IconButton(
+                                onClick = onToggleDimensionCallouts,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SquareFoot,
+                                    contentDescription = if (showDimensionCallouts) "Ocultar cotas" else "Mostrar cotas",
+                                    tint = if (showDimensionCallouts) StitchMeshTerracotta else StitchMeshTextSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Botón de pantalla completa
+                    if (onToggleFullscreen != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(StitchMeshSurfaceContainer.copy(alpha = 0.90f))
+                                .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(10.dp))
+                        ) {
+                            IconButton(
+                                onClick = onToggleFullscreen,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                    contentDescription = if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa",
+                                    tint = StitchMeshTextPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            // Badge de telemetría de malla
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(StitchMeshSurfaceHigh.copy(alpha = 0.85f))
-                    .border(
-                        width = 1.dp,
-                        color = StitchMeshSurfaceBorder,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "${telemetry.polygonCount} tris · ${telemetry.vertexCount} verts · ${telemetry.fps} FPS",
-                    style = CrochetTypography.tokenBadge,
-                    color = StitchMeshYarnGold,
-                    fontSize = 10.sp
-                )
-            }
-        }
-
-        // Esquina superior derecha: Orientación de cámara, botón cotas y botón fullscreen
-        Row(
-            modifier = Modifier.align(Alignment.TopEnd),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
+            // Fila 2: Selector de presets de orientación de cámara
             CameraOrientationPillRow(
                 selectedPreset = selectedCameraPreset,
                 onPresetSelected = onCameraPresetSelected
             )
-
-            // Conmutador de cotas CAD
-            if (onToggleDimensionCallouts != null) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            if (showDimensionCallouts) {
-                                StitchMeshTerracotta.copy(alpha = 0.20f)
-                            } else {
-                                StitchMeshSurfaceContainer.copy(alpha = 0.90f)
-                            }
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = if (showDimensionCallouts) StitchMeshTerracotta else StitchMeshSurfaceBorder,
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                ) {
-                    IconButton(
-                        onClick = onToggleDimensionCallouts,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SquareFoot,
-                            contentDescription = if (showDimensionCallouts) "Ocultar cotas" else "Mostrar cotas",
-                            tint = if (showDimensionCallouts) StitchMeshTerracotta else StitchMeshTextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-
-            if (onToggleFullscreen != null) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(StitchMeshSurfaceContainer.copy(alpha = 0.90f))
-                        .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(10.dp))
-                ) {
-                    IconButton(
-                        onClick = onToggleFullscreen,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                            contentDescription = if (isFullscreen) "Salir de pantalla completa" else "Pantalla completa",
-                            tint = StitchMeshTextPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
         }
     }
 }

@@ -123,6 +123,9 @@ class GlbMeshBuilderTest {
         val jsonStr = String(jsonBytes, Charsets.UTF_8)
 
         assertTrue("Debe declarar modo 1 (LINES) en las primitivas", jsonStr.contains("\"mode\": 1"))
+        assertTrue("Debe utilizar la extensión KHR_materials_unlit", jsonStr.contains("KHR_materials_unlit"))
+        assertTrue("Debe utilizar WireframeUnlitMaterial", jsonStr.contains("WireframeUnlitMaterial"))
+        assertTrue("NO debe incluir atributo NORMAL en primitivas LINES", !jsonStr.contains("\"NORMAL\":"))
         val expectedWireframeIndexCount = mesh.indices.size * 2
         assertTrue("El accessor de indices debe tener el doble de indices", jsonStr.contains("\"count\": $expectedWireframeIndexCount"))
 
