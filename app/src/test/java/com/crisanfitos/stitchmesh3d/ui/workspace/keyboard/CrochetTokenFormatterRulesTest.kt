@@ -141,4 +141,58 @@ class CrochetTokenFormatterRulesTest {
         assertEquals("[", text)
         assertEquals(1, cursor)
     }
+
+    @Test
+    fun smartDeleteBeforeCursor_deletesWholeStitchTokenPb() {
+        val (text, cursor) = CrochetTokenFormatter.smartDeleteBeforeCursor("6 pb", 4)
+        assertEquals("6 ", text)
+        assertEquals(2, cursor)
+    }
+
+    @Test
+    fun smartDeleteBeforeCursor_deletesWholeStitchTokenWithTrailingSpace() {
+        val (text, cursor) = CrochetTokenFormatter.smartDeleteBeforeCursor("6 pb ", 5)
+        assertEquals("6 ", text)
+        assertEquals(2, cursor)
+    }
+
+    @Test
+    fun smartDeleteBeforeCursor_deletesWholeDismToken() {
+        val (text, cursor) = CrochetTokenFormatter.smartDeleteBeforeCursor("6 dism", 6)
+        assertEquals("6 ", text)
+        assertEquals(2, cursor)
+    }
+
+    @Test
+    fun smartDeleteBeforeCursor_deletesAumTokenInsideBrackets() {
+        // [1 pb, 1 aum] -> caracteres 0..11, cursor justo después de 'aum' en índice 12
+        val (text, cursor) = CrochetTokenFormatter.smartDeleteBeforeCursor("[1 pb, 1 aum]", 12)
+        assertEquals("[1 pb, 1 ]", text)
+        assertEquals(9, cursor)
+    }
+
+    @Test
+    fun smartDeleteBeforeCursor_forNonTechnicalToken_deletesOnlySingleChar() {
+        val (text, cursor) = CrochetTokenFormatter.smartDeleteBeforeCursor("23", 2)
+        assertEquals("2", text)
+        assertEquals(1, cursor)
+    }
+
+    @Test
+    fun smartDeleteBeforeCursor_betweenEmptyBrackets_deletesBothBrackets() {
+        val (textBracket, cursorBracket) = CrochetTokenFormatter.smartDeleteBeforeCursor("[]", 1)
+        assertEquals("", textBracket)
+        assertEquals(0, cursorBracket)
+
+        val (textParen, cursorParen) = CrochetTokenFormatter.smartDeleteBeforeCursor("()", 1)
+        assertEquals("", textParen)
+        assertEquals(0, cursorParen)
+    }
+
+    @Test
+    fun backspaceAt_withSelection_deletesSelection() {
+        val (text, cursor) = CrochetTokenFormatter.backspaceAt("6 pb", 2, 4)
+        assertEquals("6 ", text)
+        assertEquals(2, cursor)
+    }
 }
