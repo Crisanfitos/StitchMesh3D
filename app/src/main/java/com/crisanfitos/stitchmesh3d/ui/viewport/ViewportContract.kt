@@ -30,7 +30,8 @@ data class ViewportState(
     val panOffset: Offset = Offset.Zero,
     val meshGeometry: com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry? = null,
     val showDimensionCallouts: Boolean = true,
-    val useCentimeters: Boolean = false
+    val useCentimeters: Boolean = false,
+    val isStuffingSimulated: Boolean = true
 ) : ViewState
 
 /**
@@ -42,6 +43,7 @@ sealed interface ViewportIntent : ViewIntent {
     ) : ViewportIntent
     data class SelectPeelRound(val round: Int) : ViewportIntent
     data class ToggleWireframe(val isWireframe: Boolean) : ViewportIntent
+    data class ToggleStuffingSimulation(val enabled: Boolean) : ViewportIntent
     data class SelectCameraPreset(val preset: CameraPreset) : ViewportIntent
     data object ToggleFullscreen : ViewportIntent
     data object ToggleDimensionCallouts : ViewportIntent

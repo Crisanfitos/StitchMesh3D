@@ -10,6 +10,7 @@ import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
 import com.crisanfitos.stitchmesh3d.core.geometry.AdaptiveTessellator
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfile
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfileGenerator
+import com.crisanfitos.stitchmesh3d.core.geometry.StuffingInflationFilter
 import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
@@ -328,7 +329,8 @@ class WorkspaceViewModel @Inject constructor(
                     roundCount = clonedRounds.size,
                     colorHex = source.colorHex,
                     isValid = source.isValid,
-                    sortOrder = _state.value.parts.size
+                    sortOrder = _state.value.parts.size,
+                    topologyType = source.topologyType
                 )
                 currentMap[newPartId] = clonedRounds
 
@@ -421,6 +423,11 @@ class WorkspaceViewModel @Inject constructor(
 
             is WorkspaceIntent.ToggleWireframe -> {
                 _state.update { it.copy(isWireframe = intent.isWireframe) }
+            }
+
+            is WorkspaceIntent.ToggleStuffingSimulation -> {
+                _state.update { it.copy(isStuffingSimulationEnabled = intent.enabled) }
+                recalculateAndRebuildMesh(_state.value.rounds)
             }
 
             is WorkspaceIntent.ToggleFullscreen -> {
@@ -553,7 +560,14 @@ class WorkspaceViewModel @Inject constructor(
                             }
                         }
                         if (ringProfiles.isNotEmpty()) {
-                            AdaptiveTessellator.tessellate(ringProfiles, includePolarCap = true)
+                            val rawMesh = AdaptiveTessellator.tessellate(ringProfiles, includePolarCap = true)
+                            val currentTopology = _state.value.parts.find { it.id == _state.value.selectedPartId }?.topologyType
+                                ?: PartTopologyType.CLOSED_FILLED
+                            if (_state.value.isStuffingSimulationEnabled) {
+                                StuffingInflationFilter.applyInflation(rawMesh, currentTopology)
+                            } else {
+                                rawMesh
+                            }
                         } else null
                     } catch (_: Throwable) {
                         null
