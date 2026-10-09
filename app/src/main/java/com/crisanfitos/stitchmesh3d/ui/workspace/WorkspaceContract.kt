@@ -126,7 +126,8 @@ data class WorkspaceState(
     val showDeletePartDialog: Boolean = false,
     val partActionTarget: ProjectPartUiModel? = null,
     val partActionError: String? = null,
-    val newlyCreatedRoundId: String? = null
+    val newlyCreatedRoundId: String? = null,
+    val isStuffingSimulationEnabled: Boolean = true
 )
 
 /**
@@ -158,6 +159,7 @@ sealed interface WorkspaceIntent {
     data class ReorderPart(val partId: String, val toIndex: Int) : WorkspaceIntent
     data class SelectPeelRound(val roundNumber: Int) : WorkspaceIntent
     data class ToggleWireframe(val isWireframe: Boolean) : WorkspaceIntent
+    data class ToggleStuffingSimulation(val enabled: Boolean) : WorkspaceIntent
     data class ToggleFullscreen(val isFullscreen: Boolean) : WorkspaceIntent
     data class ToggleKeyboard(val show: Boolean) : WorkspaceIntent
     data class InsertTokenAtActiveRound(val token: String) : WorkspaceIntent

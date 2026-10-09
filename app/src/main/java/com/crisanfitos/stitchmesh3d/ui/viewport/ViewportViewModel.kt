@@ -81,6 +81,9 @@ class ViewportViewModel @Inject constructor() :
             is ViewportIntent.ToggleWireframe -> {
                 setState { copy(isWireframe = intent.isWireframe) }
             }
+            is ViewportIntent.ToggleStuffingSimulation -> {
+                setState { copy(isStuffingSimulated = intent.enabled) }
+            }
             is ViewportIntent.ToggleDimensionCallouts -> {
                 setState { copy(showDimensionCallouts = !showDimensionCallouts) }
             }

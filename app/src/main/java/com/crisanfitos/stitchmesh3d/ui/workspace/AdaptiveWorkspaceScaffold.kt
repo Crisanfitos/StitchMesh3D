@@ -48,6 +48,8 @@ import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnGaugeStandard
 import com.crisanfitos.stitchmesh3d.core.geometry.AdaptiveTessellator
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfile
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfileGenerator
+import com.crisanfitos.stitchmesh3d.core.geometry.StuffingInflationFilter
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.viewport.CrochetViewportScreen
 import com.crisanfitos.stitchmesh3d.ui.viewport.ViewportIntent
 import com.crisanfitos.stitchmesh3d.ui.viewport.ViewportViewModel
@@ -201,7 +203,10 @@ fun AdaptiveWorkspaceScaffold(
                     }
                 }
                 if (ringProfiles.isNotEmpty()) {
-                    val mesh = AdaptiveTessellator.tessellate(ringProfiles, includePolarCap = true)
+                    val rawMesh = AdaptiveTessellator.tessellate(ringProfiles, includePolarCap = true)
+                    val currentTopology = parts.find { it.id == selectedPartId }?.topologyType
+                        ?: PartTopologyType.CLOSED_FILLED
+                    val mesh = StuffingInflationFilter.applyInflation(rawMesh, currentTopology)
                     viewportViewModel.processIntent(ViewportIntent.SetMeshGeometry(mesh))
                 }
             } catch (_: Throwable) {
