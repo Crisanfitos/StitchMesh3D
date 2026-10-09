@@ -19,6 +19,9 @@ data class ProjectEntity(
     @ColumnInfo(name = "description")
     val description: String? = null,
 
+    @ColumnInfo(name = "structure_type")
+    val structureType: String = "amigurumi_3d",
+
     @ColumnInfo(name = "yarn_weight_category")
     val yarnWeightCategory: Int = 4,
 

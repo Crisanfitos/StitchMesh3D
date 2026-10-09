@@ -32,6 +32,9 @@ data class ProjectPartEntity(
     @ColumnInfo(name = "name")
     val name: String,
 
+    @ColumnInfo(name = "topology_type")
+    val topologyType: String = "closed_filled",
+
     @ColumnInfo(name = "sort_order")
     val sortOrder: Int = 0,
 

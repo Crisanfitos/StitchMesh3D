@@ -218,12 +218,12 @@ fun DashboardContent(
         if (state.isCreateProjectModalVisible) {
             NewProjectModalSheet(
                 onDismiss = { onIntent(DashboardIntent.DismissCreateProjectModal) },
-                onCreateProject = { title, pieceType, yarnWeight, hookSizeMm, primaryColor ->
+                onCreateProject = { title, structureType, yarnWeight, hookSizeMm, primaryColor ->
                     val colorHex = String.format("#%06X", 0xFFFFFF and primaryColor.toArgb())
                     onIntent(
                         DashboardIntent.CreateProject(
                             title = title,
-                            pieceType = pieceType,
+                            structureType = structureType,
                             yarnWeight = yarnWeight,
                             hookSizeMm = hookSizeMm,
                             primaryColorHex = colorHex

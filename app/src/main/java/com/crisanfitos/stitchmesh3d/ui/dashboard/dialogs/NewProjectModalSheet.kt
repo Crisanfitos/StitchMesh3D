@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectStructureType
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceBorder
@@ -63,7 +64,7 @@ fun NewProjectModalSheet(
     onDismiss: () -> Unit,
     onCreateProject: (
         title: String,
-        pieceType: String,
+        structureType: ProjectStructureType,
         yarnWeight: YarnWeightCategory,
         hookSizeMm: Float,
         primaryColor: Color
@@ -92,7 +93,7 @@ fun NewProjectFormContent(
     onDismiss: () -> Unit,
     onCreateProject: (
         title: String,
-        pieceType: String,
+        structureType: ProjectStructureType,
         yarnWeight: YarnWeightCategory,
         hookSizeMm: Float,
         primaryColor: Color
@@ -101,7 +102,7 @@ fun NewProjectFormContent(
 ) {
     var title by remember { mutableStateOf("") }
     var titleTouched by remember { mutableStateOf(false) }
-    var selectedPieceType by remember { mutableStateOf("Amigurumi (3D)") }
+    var selectedStructureType by remember { mutableStateOf(ProjectStructureType.AMIGURUMI_3D) }
     var selectedWeight by remember { mutableStateOf(YarnWeightCategory.MEDIUM) }
     var hookSizeMm by remember { mutableFloatStateOf(3.50f) }
     var selectedColor by remember { mutableStateOf(StitchMeshTerracotta) }
@@ -187,12 +188,13 @@ fun NewProjectFormContent(
                 style = MaterialTheme.typography.labelMedium,
                 color = StitchMeshTextSecondary
             )
+            val structureTypes = ProjectStructureType.entries
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("Amigurumi (3D)", "Prenda Plana", "Accesorio").forEach { pieceType ->
-                    val isSelected = pieceType == selectedPieceType
+                structureTypes.take(2).forEach { structure ->
+                    val isSelected = structure == selectedStructureType
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -203,12 +205,12 @@ fun NewProjectFormContent(
                                 color = if (isSelected) StitchMeshTerracotta else StitchMeshSurfaceBorder,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .clickable { selectedPieceType = pieceType }
+                            .clickable { selectedStructureType = structure }
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = pieceType,
+                            text = structure.displayName,
                             style = MaterialTheme.typography.labelMedium,
                             color = if (isSelected) Color.White else StitchMeshTextSecondary,
                             maxLines = 1
@@ -216,6 +218,40 @@ fun NewProjectFormContent(
                     }
                 }
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                structureTypes.drop(2).forEach { structure ->
+                    val isSelected = structure == selectedStructureType
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) StitchMeshTerracotta else StitchMeshSurfaceHigh)
+                            .border(
+                                width = 1.dp,
+                                color = if (isSelected) StitchMeshTerracotta else StitchMeshSurfaceBorder,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable { selectedStructureType = structure }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = structure.displayName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (isSelected) Color.White else StitchMeshTextSecondary,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+            Text(
+                text = selectedStructureType.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = StitchMeshTextSecondary
+            )
         }
 
         // Selector CYC de grosor de hilado
@@ -268,7 +304,7 @@ fun NewProjectFormContent(
                     if (isTitleValid) {
                         onCreateProject(
                             title.trim(),
-                            selectedPieceType,
+                            selectedStructureType,
                             selectedWeight,
                             hookSizeMm,
                             selectedColor

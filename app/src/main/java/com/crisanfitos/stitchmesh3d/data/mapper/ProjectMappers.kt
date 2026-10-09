@@ -7,14 +7,17 @@ import com.crisanfitos.stitchmesh3d.data.local.entity.ProjectEntity
 import com.crisanfitos.stitchmesh3d.data.local.entity.ProjectPartEntity
 import com.crisanfitos.stitchmesh3d.data.local.entity.ProjectWithPartsAndRounds
 import com.crisanfitos.stitchmesh3d.domain.model.PatternRound
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.domain.model.Project
 import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectStructureType
 
 fun ProjectEntity.toDomain(parts: List<ProjectPart> = emptyList()): Project {
     return Project(
         id = id,
         title = title,
         description = description,
+        structureType = ProjectStructureType.fromCode(structureType),
         yarnWeightCategory = YarnWeightCategory.fromCode(yarnWeightCategory),
         hookSizeMm = hookSizeMm,
         customStitchWidthMm = customStitchWidthMm,
@@ -31,6 +34,7 @@ fun Project.toEntity(): ProjectEntity {
         id = id,
         title = title,
         description = description,
+        structureType = structureType.code,
         yarnWeightCategory = yarnWeightCategory.code,
         hookSizeMm = hookSizeMm,
         customStitchWidthMm = customStitchWidthMm,
@@ -46,6 +50,7 @@ fun ProjectPartEntity.toDomain(rounds: List<PatternRound> = emptyList()): Projec
         id = id,
         projectId = projectId,
         name = name,
+        topologyType = PartTopologyType.fromCode(topologyType),
         sortOrder = sortOrder,
         transformPositionX = transformPosX,
         transformPositionY = transformPosY,
@@ -64,6 +69,7 @@ fun ProjectPart.toEntity(): ProjectPartEntity {
         id = id,
         projectId = projectId,
         name = name,
+        topologyType = topologyType.code,
         sortOrder = sortOrder,
         transformPosX = transformPositionX,
         transformPosY = transformPositionY,
