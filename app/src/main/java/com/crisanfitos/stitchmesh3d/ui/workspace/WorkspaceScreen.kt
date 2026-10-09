@@ -67,8 +67,8 @@ fun WorkspaceScreen(
         AddPartDialog(
             existingNames = state.parts.map { it.name },
             onDismiss = { viewModel.processIntent(WorkspaceIntent.DismissPartDialogs) },
-            onConfirm = { name, colorHex ->
-                viewModel.processIntent(WorkspaceIntent.CreatePart(name, colorHex))
+            onConfirm = { name, colorHex, topologyType ->
+                viewModel.processIntent(WorkspaceIntent.CreatePart(name, colorHex, topologyType))
             }
         )
     }

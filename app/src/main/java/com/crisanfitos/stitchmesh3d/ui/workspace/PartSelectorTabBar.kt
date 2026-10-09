@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
@@ -55,7 +56,8 @@ data class ProjectPartUiModel(
     val roundCount: Int,
     val colorHex: String = "#E06D53",
     val isValid: Boolean = true,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val topologyType: PartTopologyType = PartTopologyType.CLOSED_FILLED
 )
 
 /**

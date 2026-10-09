@@ -10,6 +10,7 @@ import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
 import com.crisanfitos.stitchmesh3d.core.geometry.AdaptiveTessellator
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfile
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfileGenerator
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
 import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetTokenFormatter
@@ -215,11 +216,19 @@ class WorkspaceViewModel @Inject constructor(
                 }
                 val nextNum = (currentParts.maxOfOrNull { it.id.removePrefix("p").toIntOrNull() ?: 0 } ?: 0) + 1
                 val newPartId = "p$nextNum"
+                val initialInstruction = when (intent.topologyType) {
+                    PartTopologyType.FLAT_PANEL -> "10 cad"
+                    else -> "AM 6"
+                }
+                val initialProduced = when (intent.topologyType) {
+                    PartTopologyType.FLAT_PANEL -> 10
+                    else -> 6
+                }
                 val initialRound = RoundItemUiModel(
                     id = "${newPartId}_r1",
                     roundNumber = 1,
-                    rawInstruction = "AM 6",
-                    producedStitches = 6,
+                    rawInstruction = initialInstruction,
+                    producedStitches = initialProduced,
                     consumedStitches = 0,
                     declaredStitches = null,
                     isValid = true,
@@ -231,7 +240,8 @@ class WorkspaceViewModel @Inject constructor(
                     roundCount = 1,
                     colorHex = intent.colorHex,
                     isValid = true,
-                    sortOrder = currentParts.size
+                    sortOrder = currentParts.size,
+                    topologyType = intent.topologyType
                 )
                 val currentMap = _state.value.roundsByPartId.toMutableMap()
                 currentMap[_state.value.selectedPartId] = _state.value.rounds

@@ -7,6 +7,7 @@ data class ProjectPart(
     val id: String,
     val projectId: String,
     val name: String,
+    val topologyType: PartTopologyType = PartTopologyType.CLOSED_FILLED,
     val sortOrder: Int = 0,
     val transformPositionX: Float = 0f,
     val transformPositionY: Float = 0f,

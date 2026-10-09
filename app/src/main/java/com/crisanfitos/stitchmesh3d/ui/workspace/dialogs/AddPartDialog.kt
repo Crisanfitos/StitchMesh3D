@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.DefaultCrochetPalette
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
@@ -50,11 +51,12 @@ import com.crisanfitos.stitchmesh3d.ui.theme.Typography
 fun AddPartDialog(
     existingNames: List<String>,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, colorHex: String) -> Unit,
+    onConfirm: (name: String, colorHex: String, topologyType: PartTopologyType) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var nameText by remember { mutableStateOf("") }
     var selectedColorIndex by remember { mutableStateOf(0) }
+    var selectedTopology by remember { mutableStateOf(PartTopologyType.CLOSED_FILLED) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     fun validateAndSubmit() {
@@ -69,7 +71,7 @@ fun AddPartDialog(
         }
         val palette = DefaultCrochetPalette[selectedColorIndex]
         val hex = String.format("#%06X", (0xFFFFFF and palette.color.value.toLong().toInt()))
-        onConfirm(trimmed, hex)
+        onConfirm(trimmed, hex, selectedTopology)
     }
 
     AlertDialog(
@@ -119,6 +121,55 @@ fun AddPartDialog(
                         unfocusedIndicatorColor = StitchMeshSurfaceBorder
                     )
                 )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Topología estructural",
+                        style = CrochetTypography.tokenBadge,
+                        color = StitchMeshTextSecondary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        PartTopologyType.entries.forEach { topology ->
+                            val isSelected = topology == selectedTopology
+                            val label = when (topology) {
+                                PartTopologyType.CLOSED_FILLED -> "3D Rellena"
+                                PartTopologyType.SEMI_CLOSED_TUBE -> "Tubular"
+                                PartTopologyType.FLAT_PANEL -> "Plana"
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) StitchMeshTerracotta else StitchMeshSurfaceHigh)
+                                    .border(
+                                        width = 1.dp,
+                                        color = if (isSelected) StitchMeshTerracotta else StitchMeshSurfaceBorder,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { selectedTopology = topology }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = Typography.labelMedium,
+                                    color = if (isSelected) Color.White else StitchMeshTextSecondary,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = selectedTopology.description,
+                        style = Typography.bodySmall,
+                        color = StitchMeshTextSecondary
+                    )
+                }
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(

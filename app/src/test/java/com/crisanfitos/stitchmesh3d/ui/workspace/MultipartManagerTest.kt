@@ -1,5 +1,6 @@
 package com.crisanfitos.stitchmesh3d.ui.workspace
 
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -109,12 +110,37 @@ class MultipartManagerTest {
         assertEquals("#52A474", newPart.colorHex)
         assertEquals(1, newPart.roundCount)
         assertEquals(newPart.id, state.selectedPartId)
+        assertEquals(PartTopologyType.CLOSED_FILLED, newPart.topologyType)
 
         // Tiene 1 vuelta inicial creada automáticamente
         assertEquals(1, state.rounds.size)
         assertEquals("AM 6", state.rounds.first().rawInstruction)
         assertEquals(LinterValidationStatus.VALID, state.validationStatus)
         assertNotNull(state.meshGeometry)
+    }
+
+    @Test
+    fun `creating part with FLAT_PANEL topology assigns FLAT_PANEL type and 10 cad round`() = runTest(testDispatcher) {
+        val viewModel = WorkspaceViewModel(defaultDispatcher = testDispatcher)
+        testScheduler.advanceUntilIdle()
+
+        viewModel.processIntent(
+            WorkspaceIntent.CreatePart(
+                name = "Ala Izquierda",
+                colorHex = "#F2C94C",
+                topologyType = PartTopologyType.FLAT_PANEL
+            )
+        )
+        testScheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        val newPart = state.parts.last()
+        assertEquals("Ala Izquierda", newPart.name)
+        assertEquals(PartTopologyType.FLAT_PANEL, newPart.topologyType)
+        assertEquals(1, state.rounds.size)
+        assertEquals("10 cad", state.rounds.first().rawInstruction)
+        assertEquals(10, state.rounds.first().producedStitches)
+        assertEquals(LinterValidationStatus.VALID, state.validationStatus)
     }
 
     @Test

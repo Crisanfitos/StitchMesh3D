@@ -21,6 +21,7 @@ class ProjectMappersTest {
             id = "proj-1",
             title = "Oso de Crochet",
             description = "Patrón paramétrico para oso",
+            structureType = com.crisanfitos.stitchmesh3d.domain.model.ProjectStructureType.AMIGURUMI_3D,
             yarnWeightCategory = YarnWeightCategory.MEDIUM,
             hookSizeMm = 4.0f,
             customStitchWidthMm = 3.6f,
@@ -33,6 +34,7 @@ class ProjectMappersTest {
         val entity = domainProject.toEntity()
         assertEquals("proj-1", entity.id)
         assertEquals("Oso de Crochet", entity.title)
+        assertEquals("amigurumi_3d", entity.structureType)
         assertEquals(4, entity.yarnWeightCategory)
         assertEquals(4.0f, entity.hookSizeMm)
         assertEquals(3.6f, entity.customStitchWidthMm)
@@ -41,6 +43,7 @@ class ProjectMappersTest {
         val mappedBack = entity.toDomain()
         assertEquals(domainProject.id, mappedBack.id)
         assertEquals(domainProject.title, mappedBack.title)
+        assertEquals(domainProject.structureType, mappedBack.structureType)
         assertEquals(domainProject.yarnWeightCategory, mappedBack.yarnWeightCategory)
         assertEquals(domainProject.hookSizeMm, mappedBack.hookSizeMm)
         assertEquals(domainProject.customStitchWidthMm, mappedBack.customStitchWidthMm)
@@ -53,6 +56,7 @@ class ProjectMappersTest {
             id = "part-1",
             projectId = "proj-1",
             name = "Cabeza",
+            topologyType = com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType.CLOSED_FILLED,
             sortOrder = 0,
             transformPositionX = 10f,
             transformPositionY = 20f,
@@ -67,11 +71,13 @@ class ProjectMappersTest {
         assertEquals("part-1", entity.id)
         assertEquals("proj-1", entity.projectId)
         assertEquals("Cabeza", entity.name)
+        assertEquals("closed_filled", entity.topologyType)
         assertEquals(10f, entity.transformPosX)
         assertEquals(90f, entity.transformRotY)
 
         val mappedBack = entity.toDomain()
         assertEquals(domainPart.id, mappedBack.id)
+        assertEquals(domainPart.topologyType, mappedBack.topologyType)
         assertEquals(domainPart.transformPositionX, mappedBack.transformPositionX)
         assertEquals(domainPart.transformRotationY, mappedBack.transformRotationY)
     }

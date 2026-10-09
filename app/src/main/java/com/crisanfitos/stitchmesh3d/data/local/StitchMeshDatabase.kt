@@ -21,7 +21,7 @@ import com.crisanfitos.stitchmesh3d.data.local.entity.YarnGaugeStandardEntity
         PatternRoundEntity::class,
         YarnGaugeStandardEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class StitchMeshDatabase : RoomDatabase() {

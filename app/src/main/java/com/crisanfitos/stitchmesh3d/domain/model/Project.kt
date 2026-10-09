@@ -9,6 +9,7 @@ data class Project(
     val id: String,
     val title: String,
     val description: String? = null,
+    val structureType: ProjectStructureType = ProjectStructureType.AMIGURUMI_3D,
     val yarnWeightCategory: YarnWeightCategory = YarnWeightCategory.MEDIUM,
     val hookSizeMm: Float = 3.50f,
     val customStitchWidthMm: Float? = null,

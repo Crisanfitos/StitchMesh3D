@@ -1,9 +1,11 @@
 package com.crisanfitos.stitchmesh3d.ui.dashboard
 
 import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.domain.model.PatternRound
 import com.crisanfitos.stitchmesh3d.domain.model.Project
 import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectStructureType
 import com.crisanfitos.stitchmesh3d.domain.repository.ProjectRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -131,7 +133,101 @@ class DashboardViewModelTest {
         val stored = fakeRepository.getProjectById(workspaceEffect.projectId)
         assertNotNull(stored)
         assertEquals("Nuevo Panda", stored!!.title)
+        assertEquals(ProjectStructureType.AMIGURUMI_3D, stored.structureType)
         assertEquals(YarnWeightCategory.BULKY, stored.yarnWeightCategory)
+        assertEquals(1, stored.parts.size)
+        assertEquals(PartTopologyType.CLOSED_FILLED, stored.parts[0].topologyType)
+        assertEquals("Cabeza", stored.parts[0].name)
+        assertEquals("AM 6 pb", stored.parts[0].rounds[0].rawInstruction)
+        job.cancel()
+    }
+
+    @Test
+    fun `create project with FLAT_GARMENT initializes FLAT_PANEL part and 10 cad round`() = runTest(testDispatcher) {
+        var emittedEffect: DashboardEffect? = null
+        val job = launch {
+            emittedEffect = viewModel.effect.first()
+        }
+
+        viewModel.processIntent(
+            DashboardIntent.CreateProject(
+                title = "Bufanda Infinita",
+                structureType = ProjectStructureType.FLAT_GARMENT,
+                yarnWeight = YarnWeightCategory.MEDIUM,
+                hookSizeMm = 4.5f,
+                primaryColorHex = "#52A474"
+            )
+        )
+        advanceUntilIdle()
+
+        val navEffect = emittedEffect as DashboardEffect.NavigateToWorkspace
+        val stored = fakeRepository.getProjectById(navEffect.projectId)
+        assertNotNull(stored)
+        assertEquals(ProjectStructureType.FLAT_GARMENT, stored!!.structureType)
+        val initialPart = stored.parts.first()
+        assertEquals(PartTopologyType.FLAT_PANEL, initialPart.topologyType)
+        assertEquals("Panel Principal", initialPart.name)
+        assertEquals("10 cad", initialPart.rounds.first().rawInstruction)
+        assertEquals(10, initialPart.rounds.first().producedStitches)
+        job.cancel()
+    }
+
+    @Test
+    fun `create project with GRANNY_SQUARE initializes FLAT_PANEL part and AM 8 pb round`() = runTest(testDispatcher) {
+        var emittedEffect: DashboardEffect? = null
+        val job = launch {
+            emittedEffect = viewModel.effect.first()
+        }
+
+        viewModel.processIntent(
+            DashboardIntent.CreateProject(
+                title = "Cuadrado Vintage",
+                structureType = ProjectStructureType.GRANNY_SQUARE,
+                yarnWeight = YarnWeightCategory.LIGHT,
+                hookSizeMm = 3.5f,
+                primaryColorHex = "#F2C94C"
+            )
+        )
+        advanceUntilIdle()
+
+        val navEffect = emittedEffect as DashboardEffect.NavigateToWorkspace
+        val stored = fakeRepository.getProjectById(navEffect.projectId)
+        assertNotNull(stored)
+        assertEquals(ProjectStructureType.GRANNY_SQUARE, stored!!.structureType)
+        val initialPart = stored.parts.first()
+        assertEquals(PartTopologyType.FLAT_PANEL, initialPart.topologyType)
+        assertEquals("Motivo 1", initialPart.name)
+        assertEquals("AM 8 pb", initialPart.rounds.first().rawInstruction)
+        assertEquals(8, initialPart.rounds.first().producedStitches)
+        job.cancel()
+    }
+
+    @Test
+    fun `create project with ACCESSORY initializes SEMI_CLOSED_TUBE part`() = runTest(testDispatcher) {
+        var emittedEffect: DashboardEffect? = null
+        val job = launch {
+            emittedEffect = viewModel.effect.first()
+        }
+
+        viewModel.processIntent(
+            DashboardIntent.CreateProject(
+                title = "Gorro Beanie",
+                structureType = ProjectStructureType.ACCESSORY,
+                yarnWeight = YarnWeightCategory.BULKY,
+                hookSizeMm = 5.0f,
+                primaryColorHex = "#E06D53"
+            )
+        )
+        advanceUntilIdle()
+
+        val navEffect = emittedEffect as DashboardEffect.NavigateToWorkspace
+        val stored = fakeRepository.getProjectById(navEffect.projectId)
+        assertNotNull(stored)
+        assertEquals(ProjectStructureType.ACCESSORY, stored!!.structureType)
+        val initialPart = stored.parts.first()
+        assertEquals(PartTopologyType.SEMI_CLOSED_TUBE, initialPart.topologyType)
+        assertEquals("Base Tubular", initialPart.name)
+        assertEquals("AM 6 pb", initialPart.rounds.first().rawInstruction)
         job.cancel()
     }
 

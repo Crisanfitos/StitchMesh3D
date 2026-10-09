@@ -2,6 +2,7 @@ package com.crisanfitos.stitchmesh3d.ui.workspace
 
 import com.crisanfitos.stitchmesh3d.core.engine.validator.CorrectionSuggestion
 import com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
 
@@ -144,7 +145,11 @@ sealed interface WorkspaceIntent {
     data object AddPart : WorkspaceIntent
     data object OpenAddPartDialog : WorkspaceIntent
     data object DismissPartDialogs : WorkspaceIntent
-    data class CreatePart(val name: String, val colorHex: String = "#E06D53") : WorkspaceIntent
+    data class CreatePart(
+        val name: String,
+        val colorHex: String = "#E06D53",
+        val topologyType: PartTopologyType = PartTopologyType.CLOSED_FILLED
+    ) : WorkspaceIntent
     data class OpenRenamePartDialog(val partId: String) : WorkspaceIntent
     data class ConfirmRenamePart(val partId: String, val newName: String) : WorkspaceIntent
     data class DuplicatePart(val partId: String) : WorkspaceIntent

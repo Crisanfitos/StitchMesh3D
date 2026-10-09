@@ -2,9 +2,11 @@ package com.crisanfitos.stitchmesh3d.ui.dashboard
 
 import androidx.lifecycle.viewModelScope
 import com.crisanfitos.stitchmesh3d.core.mvi.BaseViewModel
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.domain.model.PatternRound
 import com.crisanfitos.stitchmesh3d.domain.model.Project
 import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectStructureType
 import com.crisanfitos.stitchmesh3d.domain.repository.ProjectRepository
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.ProjectCardUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -104,15 +106,34 @@ class DashboardViewModel @Inject constructor(
             val partId = UUID.randomUUID().toString()
             val now = System.currentTimeMillis()
 
+            val (partName, topologyType, rawInstruction, initialStitches) = when (intent.structureType) {
+                ProjectStructureType.AMIGURUMI_3D -> {
+                    val name = if (intent.pieceType.isNotBlank() && intent.pieceType != "Amigurumi (3D)") intent.pieceType else "Cuerpo Principal"
+                    Quadruple(name, PartTopologyType.CLOSED_FILLED, "AM 6 pb", 6)
+                }
+                ProjectStructureType.FLAT_GARMENT -> {
+                    val name = if (intent.pieceType.isNotBlank() && intent.pieceType != "Prenda Plana") intent.pieceType else "Panel Principal"
+                    Quadruple(name, PartTopologyType.FLAT_PANEL, "10 cad", 10)
+                }
+                ProjectStructureType.GRANNY_SQUARE -> {
+                    val name = if (intent.pieceType.isNotBlank() && intent.pieceType != "Granny Square") intent.pieceType else "Motivo 1"
+                    Quadruple(name, PartTopologyType.FLAT_PANEL, "AM 8 pb", 8)
+                }
+                ProjectStructureType.ACCESSORY -> {
+                    val name = if (intent.pieceType.isNotBlank() && intent.pieceType != "Accesorio") intent.pieceType else "Base Tubular"
+                    Quadruple(name, PartTopologyType.SEMI_CLOSED_TUBE, "AM 6 pb", 6)
+                }
+            }
+
             val initialRound = PatternRound(
                 id = UUID.randomUUID().toString(),
                 partId = partId,
                 roundNumber = 1,
-                rawInstruction = "AM 6 pb",
+                rawInstruction = rawInstruction,
                 colorHex = intent.primaryColorHex,
                 consumedStitches = 0,
-                producedStitches = 6,
-                declaredStitches = 6,
+                producedStitches = initialStitches,
+                declaredStitches = initialStitches,
                 isValid = true,
                 createdAt = now
             )
@@ -120,7 +141,8 @@ class DashboardViewModel @Inject constructor(
             val initialPart = ProjectPart(
                 id = partId,
                 projectId = projectId,
-                name = intent.pieceType,
+                name = partName,
+                topologyType = topologyType,
                 sortOrder = 0,
                 isValid = true,
                 createdAt = now,
@@ -130,6 +152,7 @@ class DashboardViewModel @Inject constructor(
             val newProject = Project(
                 id = projectId,
                 title = intent.title,
+                structureType = intent.structureType,
                 yarnWeightCategory = intent.yarnWeight,
                 hookSizeMm = intent.hookSizeMm,
                 isValid = true,
@@ -162,3 +185,5 @@ class DashboardViewModel @Inject constructor(
         }
     }
 }
+
+private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

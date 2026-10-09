@@ -4,6 +4,7 @@ import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
 import com.crisanfitos.stitchmesh3d.core.mvi.ViewEffect
 import com.crisanfitos.stitchmesh3d.core.mvi.ViewIntent
 import com.crisanfitos.stitchmesh3d.core.mvi.ViewState
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectStructureType
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.ProjectCardUiModel
 
 /**
@@ -48,7 +49,8 @@ sealed interface DashboardIntent : ViewIntent {
     object DismissCreateProjectModal : DashboardIntent
     data class CreateProject(
         val title: String,
-        val pieceType: String,
+        val structureType: ProjectStructureType = ProjectStructureType.AMIGURUMI_3D,
+        val pieceType: String = structureType.displayName,
         val yarnWeight: YarnWeightCategory,
         val hookSizeMm: Float,
         val primaryColorHex: String
