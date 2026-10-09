@@ -254,7 +254,16 @@ fun RoundItemRow(
                     BasicTextField(
                         value = fieldValue,
                         onValueChange = { newValue ->
-                            fieldValue = newValue
+                            if (newValue.text.length == fieldValue.text.length + 1 && newValue.selection.collapsed) {
+                                val (smartText, smartCursor) = CrochetTokenFormatter.autoCloseDelimiters(
+                                    oldText = fieldValue.text,
+                                    newText = newValue.text,
+                                    newCursor = newValue.selection.start
+                                )
+                                fieldValue = TextFieldValue(smartText, TextRange(smartCursor))
+                            } else {
+                                fieldValue = newValue
+                            }
                         },
                         enabled = enabled,
                         singleLine = true,
