@@ -11,13 +11,15 @@ object CrochetTokenFormatter {
 
     /**
      * Inserta un token en el texto actual añadiendo espacios inteligentemente
-     * según los delimitadores técnicos de crochet.
+     * según los delimitadores técnicos de crochet y conectando dígitos contiguos.
      */
     fun insertToken(currentText: String, token: String): String {
         val effectiveToken = if (token == "( )") "()" else token
+        val isConnectingDigits = effectiveToken.isNotEmpty() && effectiveToken.all { it.isDigit() } && currentText.isNotEmpty() && currentText.last().isDigit()
         return when {
             currentText.isEmpty() -> effectiveToken
             currentText.endsWith(" ") -> currentText + effectiveToken
+            isConnectingDigits -> currentText + effectiveToken
             effectiveToken in noSpacePrefixTokens -> currentText + effectiveToken
             currentText.last() in noSpaceSuffixEnds -> currentText + effectiveToken
             else -> "$currentText $effectiveToken"
@@ -27,18 +29,71 @@ object CrochetTokenFormatter {
     /**
      * Inserta un token en una posición de cursor arbitraria dentro de la cadena,
      * retornando el texto resultante y la nueva posición sugerida del cursor.
+     * Soporta unión de dígitos contiguos y auto-cierre con cursor interno para `[` y `(`.
      */
     fun insertTokenAtCursor(currentText: String, token: String, cursorPosition: Int): Pair<String, Int> {
         val safeCursor = cursorPosition.coerceIn(0, currentText.length)
         val prefix = currentText.substring(0, safeCursor)
         val suffix = currentText.substring(safeCursor)
 
-        val inserted = if (token == "( )") "()" else token
-        val separatorBefore = if (prefix.isNotEmpty() && !prefix.endsWith(" ") && inserted !in noSpacePrefixTokens && !noSpaceSuffixEnds.contains(prefix.last())) " " else ""
+        // Si el usuario pulsa el delimitador de cierre y el carácter inmediato ya es el cierre,
+        // saltamos sobre él sin duplicar (UX estilo IDE)
+        if (token == "]" && suffix.startsWith("]")) {
+            return Pair(currentText, safeCursor + 1)
+        }
+        if (token == ")" && suffix.startsWith(")")) {
+            return Pair(currentText, safeCursor + 1)
+        }
+
+        val (inserted, cursorOffsetInside) = when (token) {
+            "( )", "()" -> Pair("()", 1)
+            "(" -> Pair("()", 1)
+            "[" -> Pair("[]", 1)
+            else -> Pair(token, token.length)
+        }
+
+        val isConnectingDigits = token.isNotEmpty() && token.all { it.isDigit() } && prefix.isNotEmpty() && prefix.last().isDigit()
+        val separatorBefore = if (
+            prefix.isNotEmpty() &&
+            !prefix.endsWith(" ") &&
+            inserted !in noSpacePrefixTokens &&
+            prefix.last() !in noSpaceSuffixEnds &&
+            !isConnectingDigits
+        ) " " else ""
+
         val separatorAfter = if (suffix.isNotEmpty() && !suffix.startsWith(" ") && suffix.first() !in noSpacePrefixTokens.map { it.first() }) "" else ""
 
         val newText = "$prefix$separatorBefore$inserted$separatorAfter$suffix"
-        val newCursor = prefix.length + separatorBefore.length + if (token == "( )") 1 else inserted.length
+        val newCursor = prefix.length + separatorBefore.length + cursorOffsetInside
+        return Pair(newText, newCursor)
+    }
+
+    /**
+     * Autocompleta automáticamente los delimitadores '[' y '(' insertados desde el teclado
+     * nativo del sistema, posicionando el cursor dentro del par delimitador y evitando duplicar
+     * el delimitador de cierre si ya existe a la derecha del cursor.
+     */
+    fun autoCloseDelimiters(
+        oldText: String,
+        newText: String,
+        newCursor: Int
+    ): Pair<String, Int> {
+        if (newText.length == oldText.length + 1 && newCursor in 1..newText.length) {
+            val charInserted = newText[newCursor - 1]
+            if (charInserted == '[') {
+                val withClosing = newText.substring(0, newCursor) + "]" + newText.substring(newCursor)
+                return Pair(withClosing, newCursor)
+            } else if (charInserted == '(') {
+                val withClosing = newText.substring(0, newCursor) + ")" + newText.substring(newCursor)
+                return Pair(withClosing, newCursor)
+            } else if (charInserted == ']' && newCursor < newText.length && newText[newCursor] == ']') {
+                val deduplicated = newText.substring(0, newCursor) + newText.substring(newCursor + 1)
+                return Pair(deduplicated, newCursor)
+            } else if (charInserted == ')' && newCursor < newText.length && newText[newCursor] == ')') {
+                val deduplicated = newText.substring(0, newCursor) + newText.substring(newCursor + 1)
+                return Pair(deduplicated, newCursor)
+            }
+        }
         return Pair(newText, newCursor)
     }
 
