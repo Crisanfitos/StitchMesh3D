@@ -112,6 +112,7 @@ class WorkspaceViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         selectedRoundId = newRoundId,
+                        newlyCreatedRoundId = newRoundId,
                         currentPeelRound = nextNumber
                     )
                 }
@@ -119,6 +120,10 @@ class WorkspaceViewModel @Inject constructor(
                 viewModelScope.launch {
                     _effects.emit(WorkspaceEffect.ScrollToRound(newRoundId))
                 }
+            }
+
+            is WorkspaceIntent.ConsumeInitialFocus -> {
+                _state.update { it.copy(newlyCreatedRoundId = null) }
             }
 
             is WorkspaceIntent.DeleteRound -> {

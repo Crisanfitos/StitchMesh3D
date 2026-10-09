@@ -124,7 +124,8 @@ data class WorkspaceState(
     val showRenamePartDialog: Boolean = false,
     val showDeletePartDialog: Boolean = false,
     val partActionTarget: ProjectPartUiModel? = null,
-    val partActionError: String? = null
+    val partActionError: String? = null,
+    val newlyCreatedRoundId: String? = null
 )
 
 /**
@@ -136,6 +137,7 @@ sealed interface WorkspaceIntent {
     data class ChangeRoundColor(val roundId: String, val colorHex: String) : WorkspaceIntent
     data class SelectRound(val roundId: String) : WorkspaceIntent
     data object AddRound : WorkspaceIntent
+    data object ConsumeInitialFocus : WorkspaceIntent
     data class DeleteRound(val roundId: String) : WorkspaceIntent
     data class ApplySuggestion(val roundId: String, val suggestion: CorrectionSuggestion) : WorkspaceIntent
     data class SelectPart(val partId: String) : WorkspaceIntent
