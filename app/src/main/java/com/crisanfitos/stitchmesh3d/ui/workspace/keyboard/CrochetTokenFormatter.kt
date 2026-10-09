@@ -97,6 +97,60 @@ object CrochetTokenFormatter {
         return Pair(newText, newCursor)
     }
 
+    private val technicalTokens = setOf(
+        "pb", "aum", "dism", "pe", "mpa", "pa", "cad", "blo", "flo", "am",
+        "sc", "inc", "dec", "slst", "ch", "hdc", "dc", "mr"
+    )
+
+    /**
+     * Elimina inteligentemente el contenido antes del cursor:
+     * - Si el cursor está en medio de delimitadores vacíos [|] o (|), elimina ambos delimitadores.
+     * - Si inmediatamente antes del cursor (o tras espacios intermedios) hay un token técnico de crochet,
+     *   lo elimina de golpe como una unidad atómica indivisible (SM-064).
+     * - En cualquier otro caso, elimina un único carácter hacia atrás.
+     */
+    fun smartDeleteBeforeCursor(currentText: String, cursorPosition: Int): Pair<String, Int> {
+        val safeCursor = cursorPosition.coerceIn(0, currentText.length)
+        if (safeCursor == 0 || currentText.isEmpty()) {
+            return Pair(currentText, 0)
+        }
+
+        val prefix = currentText.substring(0, safeCursor)
+        val suffix = currentText.substring(safeCursor)
+
+        // Caso delimitadores vacíos: [|] o (|)
+        if (prefix.endsWith("[") && suffix.startsWith("]")) {
+            return Pair(prefix.dropLast(1) + suffix.drop(1), safeCursor - 1)
+        }
+        if (prefix.endsWith("(") && suffix.startsWith(")")) {
+            return Pair(prefix.dropLast(1) + suffix.drop(1), safeCursor - 1)
+        }
+
+        // Si el cursor está en medio de una palabra (el siguiente carácter es letra o dígito),
+        // no es el final de un token técnico aislado
+        val isInsideWord = suffix.isNotEmpty() && suffix.first().isLetterOrDigit()
+
+        val trimmedPrefix = prefix.trimEnd()
+        // Buscar si trimmedPrefix termina en un token técnico precedido por límite de palabra
+        val matchedToken = if (!isInsideWord) {
+            technicalTokens.firstOrNull { token ->
+                trimmedPrefix.endsWith(token, ignoreCase = true) &&
+                    (trimmedPrefix.length == token.length || !trimmedPrefix[trimmedPrefix.length - token.length - 1].isLetterOrDigit())
+            }
+        } else {
+            null
+        }
+
+        if (matchedToken != null) {
+            val remainingPrefix = trimmedPrefix.dropLast(matchedToken.length)
+            val newText = remainingPrefix + suffix
+            return Pair(newText, remainingPrefix.length)
+        }
+
+        val newPrefix = prefix.dropLast(1)
+        return Pair(newPrefix + suffix, safeCursor - 1)
+    }
+
     /**
      * Elimina el último carácter del texto actual.
      */
@@ -125,8 +179,8 @@ object CrochetTokenFormatter {
     }
 
     /**
-     * Borrado con semántica de cursor: elimina la selección si existe, o el carácter previo
-     * al cursor en caso contrario. Devuelve el texto y la nueva posición del cursor (SM-062).
+     * Borrado con semántica de cursor y soporte de borrado atómico por token (SM-064):
+     * elimina la selección si existe, o aplica [smartDeleteBeforeCursor] en caso contrario.
      */
     fun backspaceAt(currentText: String, selectionStart: Int, selectionEnd: Int): Pair<String, Int> {
         val start = minOf(selectionStart, selectionEnd).coerceIn(0, currentText.length)
@@ -134,7 +188,7 @@ object CrochetTokenFormatter {
         if (start != end) {
             return Pair(currentText.substring(0, start) + currentText.substring(end), start)
         }
-        return deleteCharBeforeCursor(currentText, start)
+        return smartDeleteBeforeCursor(currentText, start)
     }
 
     /**
