@@ -127,6 +127,7 @@ fun AdaptiveWorkspaceScaffold(
     onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null,
     onCalibrateTensionClick: (() -> Unit)? = null,
     onExportClick: (() -> Unit)? = null,
+    onAssemblyClick: (() -> Unit)? = null,
     newlyCreatedRoundId: String? = null,
     onConsumeFocus: (() -> Unit)? = null,
     viewportContent: (@Composable () -> Unit)? = null
@@ -285,7 +286,8 @@ fun AdaptiveWorkspaceScaffold(
                     validationStatus = validationStatus,
                     onBackClick = onBackClick,
                     onCalibrateTensionClick = onCalibrateTensionClick,
-                    onExportClick = onExportClick
+                    onExportClick = onExportClick,
+                    onAssemblyClick = onAssemblyClick
                 )
             }
         }

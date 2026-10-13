@@ -26,6 +26,7 @@ fun WorkspaceScreen(
     onBackToDashboard: () -> Unit,
     modifier: Modifier = Modifier,
     onCalibrateTension: (() -> Unit)? = null,
+    onNavigateToAssembly: (() -> Unit)? = null,
     viewModel: WorkspaceViewModel = viewModel()
 ) {
     LaunchedEffect(projectId) {
@@ -48,6 +49,7 @@ fun WorkspaceScreen(
         showQuickKeyboard = state.showQuickKeyboard,
         onBackClick = onBackToDashboard,
         onCalibrateTensionClick = onCalibrateTension,
+        onAssemblyClick = onNavigateToAssembly,
         onPartSelected = { viewModel.processIntent(WorkspaceIntent.SelectPart(it)) },
         onRoundSelected = { viewModel.processIntent(WorkspaceIntent.SelectRound(it)) },
         onInstructionChanged = { id, text -> viewModel.processIntent(WorkspaceIntent.EditRoundInstruction(id, text)) },

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,7 +58,8 @@ fun WorkspaceTopBar(
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
     onCalibrateTensionClick: (() -> Unit)? = null,
-    onExportClick: (() -> Unit)? = null
+    onExportClick: (() -> Unit)? = null,
+    onAssemblyClick: (() -> Unit)? = null
 ) {
     TopAppBar(
         modifier = modifier.border(width = 1.dp, color = StitchMeshSurfaceBorder),
@@ -119,6 +121,17 @@ fun WorkspaceTopBar(
                         imageVector = Icons.Default.Straighten,
                         contentDescription = "Muestra de tensión",
                         tint = StitchMeshTextSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            if (onAssemblyClick != null) {
+                IconButton(onClick = onAssemblyClick) {
+                    Icon(
+                        imageVector = Icons.Default.AccountTree,
+                        contentDescription = "Ensamblador 3D multipieza",
+                        tint = StitchMeshTerracotta,
                         modifier = Modifier.size(20.dp)
                     )
                 }
