@@ -93,6 +93,7 @@ object PlanarMeshGenerator {
         val positions = ArrayList<Float>()
         val normals = ArrayList<Float>()
         val colors = ArrayList<Float>()
+        val uvs = ArrayList<Float>()
         val indices = ArrayList<Short>()
 
         // 1. Calcular alturas Y de cada hilera
@@ -107,7 +108,8 @@ object PlanarMeshGenerator {
         fun addVertex(
             x: Float, y: Float, z: Float,
             nx: Float, ny: Float, nz: Float,
-            colorRgba: FloatArray
+            colorRgba: FloatArray,
+            u: Float = 0f, v: Float = 0f
         ): Short {
             val idx = (positions.size / 3).toShort()
             positions.add(x)
@@ -120,6 +122,8 @@ object PlanarMeshGenerator {
             colors.add(colorRgba[1])
             colors.add(colorRgba[2])
             colors.add(colorRgba[3])
+            uvs.add(u)
+            uvs.add(v)
             return idx
         }
 
@@ -157,60 +161,60 @@ object PlanarMeshGenerator {
                 val colorRgba = CrochetColorHelper.toRgbaFloats(inst.colorHex ?: defaultColorHex)
 
                 // --- CARA SUPERIOR (+Z) ---
-                val top00 = addVertex(xLeft, yBottom, halfT, 0f, 0f, 1f, colorRgba)
-                val top10 = addVertex(xRight, yBottom, halfT, 0f, 0f, 1f, colorRgba)
-                val top11 = addVertex(xRight, yTop, halfT, 0f, 0f, 1f, colorRgba)
-                val top01 = addVertex(xLeft, yTop, halfT, 0f, 0f, 1f, colorRgba)
+                val top00 = addVertex(xLeft, yBottom, halfT, 0f, 0f, 1f, colorRgba, 0f, 0f)
+                val top10 = addVertex(xRight, yBottom, halfT, 0f, 0f, 1f, colorRgba, 1f, 0f)
+                val top11 = addVertex(xRight, yTop, halfT, 0f, 0f, 1f, colorRgba, 1f, 1f)
+                val top01 = addVertex(xLeft, yTop, halfT, 0f, 0f, 1f, colorRgba, 0f, 1f)
                 addQuad(top00, top10, top11, top01)
 
                 // --- CARA INFERIOR (-Z) ---
                 // Orden invertido para winding CCW visto desde abajo
-                val bot00 = addVertex(xLeft, yBottom, -halfT, 0f, 0f, -1f, colorRgba)
-                val bot10 = addVertex(xRight, yBottom, -halfT, 0f, 0f, -1f, colorRgba)
-                val bot11 = addVertex(xRight, yTop, -halfT, 0f, 0f, -1f, colorRgba)
-                val bot01 = addVertex(xLeft, yTop, -halfT, 0f, 0f, -1f, colorRgba)
+                val bot00 = addVertex(xLeft, yBottom, -halfT, 0f, 0f, -1f, colorRgba, 0f, 0f)
+                val bot10 = addVertex(xRight, yBottom, -halfT, 0f, 0f, -1f, colorRgba, 1f, 0f)
+                val bot11 = addVertex(xRight, yTop, -halfT, 0f, 0f, -1f, colorRgba, 1f, 1f)
+                val bot01 = addVertex(xLeft, yTop, -halfT, 0f, 0f, -1f, colorRgba, 0f, 1f)
                 addQuad(bot00, bot01, bot11, bot10)
 
                 // --- BORDES PERIMETRALES ---
                 // Borde Inferior (solo en la primera hilera r == 0)
                 if (r == 0) {
-                    val s0 = addVertex(xLeft, yBottom, halfT, 0f, -1f, 0f, colorRgba)
-                    val s1 = addVertex(xRight, yBottom, halfT, 0f, -1f, 0f, colorRgba)
-                    val s2 = addVertex(xRight, yBottom, -halfT, 0f, -1f, 0f, colorRgba)
-                    val s3 = addVertex(xLeft, yBottom, -halfT, 0f, -1f, 0f, colorRgba)
+                    val s0 = addVertex(xLeft, yBottom, halfT, 0f, -1f, 0f, colorRgba, 0f, 1f)
+                    val s1 = addVertex(xRight, yBottom, halfT, 0f, -1f, 0f, colorRgba, 1f, 1f)
+                    val s2 = addVertex(xRight, yBottom, -halfT, 0f, -1f, 0f, colorRgba, 1f, 0f)
+                    val s3 = addVertex(xLeft, yBottom, -halfT, 0f, -1f, 0f, colorRgba, 0f, 0f)
                     addQuad(s0, s3, s2, s1)
                 }
 
                 // Borde Superior (solo en la última hilera r == validRows.lastIndex)
                 if (r == validRows.lastIndex) {
-                    val s0 = addVertex(xLeft, yTop, halfT, 0f, 1f, 0f, colorRgba)
-                    val s1 = addVertex(xRight, yTop, halfT, 0f, 1f, 0f, colorRgba)
-                    val s2 = addVertex(xRight, yTop, -halfT, 0f, 1f, 0f, colorRgba)
-                    val s3 = addVertex(xLeft, yTop, -halfT, 0f, 1f, 0f, colorRgba)
+                    val s0 = addVertex(xLeft, yTop, halfT, 0f, 1f, 0f, colorRgba, 0f, 1f)
+                    val s1 = addVertex(xRight, yTop, halfT, 0f, 1f, 0f, colorRgba, 1f, 1f)
+                    val s2 = addVertex(xRight, yTop, -halfT, 0f, 1f, 0f, colorRgba, 1f, 0f)
+                    val s3 = addVertex(xLeft, yTop, -halfT, 0f, 1f, 0f, colorRgba, 0f, 0f)
                     addQuad(s0, s1, s2, s3)
                 }
 
                 // Borde Izquierdo (primer punto de la hilera j == 0)
                 if (j == 0) {
-                    val s0 = addVertex(xLeft, yBottom, halfT, -1f, 0f, 0f, colorRgba)
-                    val s1 = addVertex(xLeft, yTop, halfT, -1f, 0f, 0f, colorRgba)
-                    val s2 = addVertex(xLeft, yTop, -halfT, -1f, 0f, 0f, colorRgba)
-                    val s3 = addVertex(xLeft, yBottom, -halfT, -1f, 0f, 0f, colorRgba)
+                    val s0 = addVertex(xLeft, yBottom, halfT, -1f, 0f, 0f, colorRgba, 0f, 1f)
+                    val s1 = addVertex(xLeft, yTop, halfT, -1f, 0f, 0f, colorRgba, 1f, 1f)
+                    val s2 = addVertex(xLeft, yTop, -halfT, -1f, 0f, 0f, colorRgba, 1f, 0f)
+                    val s3 = addVertex(xLeft, yBottom, -halfT, -1f, 0f, 0f, colorRgba, 0f, 0f)
                     addQuad(s0, s1, s2, s3)
                 }
 
                 // Borde Derecho (último punto de la hilera j == row.lastIndex)
                 if (j == row.lastIndex) {
-                    val s0 = addVertex(xRight, yBottom, halfT, 1f, 0f, 0f, colorRgba)
-                    val s1 = addVertex(xRight, yTop, halfT, 1f, 0f, 0f, colorRgba)
-                    val s2 = addVertex(xRight, yTop, -halfT, 1f, 0f, 0f, colorRgba)
-                    val s3 = addVertex(xRight, yBottom, -halfT, 1f, 0f, 0f, colorRgba)
+                    val s0 = addVertex(xRight, yBottom, halfT, 1f, 0f, 0f, colorRgba, 0f, 1f)
+                    val s1 = addVertex(xRight, yTop, halfT, 1f, 0f, 0f, colorRgba, 1f, 1f)
+                    val s2 = addVertex(xRight, yTop, -halfT, 1f, 0f, 0f, colorRgba, 1f, 0f)
+                    val s3 = addVertex(xRight, yBottom, -halfT, 1f, 0f, 0f, colorRgba, 0f, 0f)
                     addQuad(s0, s3, s2, s1)
                 }
             }
         }
 
-        return createMesh(positions, normals, colors, indices)
+        return createMesh(positions, normals, colors, uvs, indices)
     }
 
     /**
@@ -235,6 +239,7 @@ object PlanarMeshGenerator {
         val positions = ArrayList<Float>()
         val normals = ArrayList<Float>()
         val colors = ArrayList<Float>()
+        val uvs = ArrayList<Float>()
         val indices = ArrayList<Short>()
 
         // Helper para radio con modulación cuadrada (superelipse redondeada)
@@ -250,7 +255,8 @@ object PlanarMeshGenerator {
         fun addVertex(
             x: Float, y: Float, z: Float,
             nx: Float, ny: Float, nz: Float,
-            colorRgba: FloatArray
+            colorRgba: FloatArray,
+            u: Float = 0f, v: Float = 0f
         ): Short {
             val idx = (positions.size / 3).toShort()
             positions.add(x)
@@ -263,6 +269,8 @@ object PlanarMeshGenerator {
             colors.add(colorRgba[1])
             colors.add(colorRgba[2])
             colors.add(colorRgba[3])
+            uvs.add(u)
+            uvs.add(v)
             return idx
         }
 
@@ -290,8 +298,8 @@ object PlanarMeshGenerator {
         val centerColor = CrochetColorHelper.toRgbaFloats(
             validRounds.first().firstOrNull()?.colorHex ?: defaultColorHex
         )
-        val topCenterIdx = addVertex(0f, 0f, halfT, 0f, 0f, 1f, centerColor)
-        val botCenterIdx = addVertex(0f, 0f, -halfT, 0f, 0f, -1f, centerColor)
+        val topCenterIdx = addVertex(0f, 0f, halfT, 0f, 0f, 1f, centerColor, 0.5f, 0f)
+        val botCenterIdx = addVertex(0f, 0f, -halfT, 0f, 0f, -1f, centerColor, 0.5f, 0f)
 
         // Teselación por anillos concéntricos
         for (r in validRounds.indices) {
@@ -325,31 +333,31 @@ object PlanarMeshGenerator {
 
                 if (r == 0) {
                     // Tapar el centro inicial mediante abanico (Triangle Fan)
-                    val topInStart = addVertex(xInStart, yInStart, halfT, 0f, 0f, 1f, colorRgba)
-                    val topInEnd = addVertex(xInEnd, yInEnd, halfT, 0f, 0f, 1f, colorRgba)
+                    val topInStart = addVertex(xInStart, yInStart, halfT, 0f, 0f, 1f, colorRgba, 0f, 1f)
+                    val topInEnd = addVertex(xInEnd, yInEnd, halfT, 0f, 0f, 1f, colorRgba, 1f, 1f)
                     indices.add(topCenterIdx)
                     indices.add(topInStart)
                     indices.add(topInEnd)
 
-                    val botInStart = addVertex(xInStart, yInStart, -halfT, 0f, 0f, -1f, colorRgba)
-                    val botInEnd = addVertex(xInEnd, yInEnd, -halfT, 0f, 0f, -1f, colorRgba)
+                    val botInStart = addVertex(xInStart, yInStart, -halfT, 0f, 0f, -1f, colorRgba, 0f, 1f)
+                    val botInEnd = addVertex(xInEnd, yInEnd, -halfT, 0f, 0f, -1f, colorRgba, 1f, 1f)
                     indices.add(botCenterIdx)
                     indices.add(botInEnd)
                     indices.add(botInStart)
                 }
 
                 // Cara Superior (+Z) del sector del anillo
-                val topIn0 = addVertex(xInStart, yInStart, halfT, 0f, 0f, 1f, colorRgba)
-                val topOut0 = addVertex(xOutStart, yOutStart, halfT, 0f, 0f, 1f, colorRgba)
-                val topOut1 = addVertex(xOutEnd, yOutEnd, halfT, 0f, 0f, 1f, colorRgba)
-                val topIn1 = addVertex(xInEnd, yInEnd, halfT, 0f, 0f, 1f, colorRgba)
+                val topIn0 = addVertex(xInStart, yInStart, halfT, 0f, 0f, 1f, colorRgba, 0f, 0f)
+                val topOut0 = addVertex(xOutStart, yOutStart, halfT, 0f, 0f, 1f, colorRgba, 0f, 1f)
+                val topOut1 = addVertex(xOutEnd, yOutEnd, halfT, 0f, 0f, 1f, colorRgba, 1f, 1f)
+                val topIn1 = addVertex(xInEnd, yInEnd, halfT, 0f, 0f, 1f, colorRgba, 1f, 0f)
                 addQuad(topIn0, topOut0, topOut1, topIn1)
 
                 // Cara Inferior (-Z) del sector del anillo
-                val botIn0 = addVertex(xInStart, yInStart, -halfT, 0f, 0f, -1f, colorRgba)
-                val botOut0 = addVertex(xOutStart, yOutStart, -halfT, 0f, 0f, -1f, colorRgba)
-                val botOut1 = addVertex(xOutEnd, yOutEnd, -halfT, 0f, 0f, -1f, colorRgba)
-                val botIn1 = addVertex(xInEnd, yInEnd, -halfT, 0f, 0f, -1f, colorRgba)
+                val botIn0 = addVertex(xInStart, yInStart, -halfT, 0f, 0f, -1f, colorRgba, 0f, 0f)
+                val botOut0 = addVertex(xOutStart, yOutStart, -halfT, 0f, 0f, -1f, colorRgba, 0f, 1f)
+                val botOut1 = addVertex(xOutEnd, yOutEnd, -halfT, 0f, 0f, -1f, colorRgba, 1f, 1f)
+                val botIn1 = addVertex(xInEnd, yInEnd, -halfT, 0f, 0f, -1f, colorRgba, 1f, 0f)
                 addQuad(botIn0, botIn1, botOut1, botOut0)
 
                 // Perímetro exterior (solo en la última vuelta)
@@ -357,16 +365,16 @@ object PlanarMeshGenerator {
                     val thetaMid = (thetaStart + thetaEnd) / 2.0
                     val nX = cos(thetaMid).toFloat()
                     val nY = sin(thetaMid).toFloat()
-                    val sTop0 = addVertex(xOutStart, yOutStart, halfT, nX, nY, 0f, colorRgba)
-                    val sTop1 = addVertex(xOutEnd, yOutEnd, halfT, nX, nY, 0f, colorRgba)
-                    val sBot1 = addVertex(xOutEnd, yOutEnd, -halfT, nX, nY, 0f, colorRgba)
-                    val sBot0 = addVertex(xOutStart, yOutStart, -halfT, nX, nY, 0f, colorRgba)
+                    val sTop0 = addVertex(xOutStart, yOutStart, halfT, nX, nY, 0f, colorRgba, 0f, 1f)
+                    val sTop1 = addVertex(xOutEnd, yOutEnd, halfT, nX, nY, 0f, colorRgba, 1f, 1f)
+                    val sBot1 = addVertex(xOutEnd, yOutEnd, -halfT, nX, nY, 0f, colorRgba, 1f, 0f)
+                    val sBot0 = addVertex(xOutStart, yOutStart, -halfT, nX, nY, 0f, colorRgba, 0f, 0f)
                     addQuad(sTop0, sTop1, sBot1, sBot0)
                 }
             }
         }
 
-        return createMesh(positions, normals, colors, indices)
+        return createMesh(positions, normals, colors, uvs, indices)
     }
 
     private fun emptyMesh(): MeshGeometry = MeshGeometry(
@@ -375,18 +383,21 @@ object PlanarMeshGenerator {
         vertexCount = 0,
         triangleCount = 0,
         vertexNormals = FloatArray(0),
-        vertexColors = FloatArray(0)
+        vertexColors = FloatArray(0),
+        vertexUvs = FloatArray(0)
     )
 
     private fun createMesh(
         positions: List<Float>,
         normals: List<Float>,
         colors: List<Float>,
+        uvs: List<Float>,
         indices: List<Short>
     ): MeshGeometry {
         val posArray = FloatArray(positions.size) { positions[it] }
         val normArray = FloatArray(normals.size) { normals[it] }
         val colArray = FloatArray(colors.size) { colors[it] }
+        val uvArray = FloatArray(uvs.size) { uvs[it] }
         val idxArray = ShortArray(indices.size) { indices[it] }
 
         return MeshGeometry(
@@ -395,7 +406,8 @@ object PlanarMeshGenerator {
             vertexCount = posArray.size / 3,
             triangleCount = idxArray.size / 3,
             vertexNormals = normArray,
-            vertexColors = colArray
+            vertexColors = colArray,
+            vertexUvs = uvArray
         )
     }
 }

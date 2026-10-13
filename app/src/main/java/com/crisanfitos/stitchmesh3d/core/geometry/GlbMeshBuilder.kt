@@ -11,7 +11,10 @@ import java.nio.ByteOrder
  * - Material Wool PBR: `roughnessFactor = 0.9` (textil mate), `metallicFactor = 0.0`, `doubleSided = true`.
  * - Modo Wireframe: compatible con Google Filament / Sceneview usando la extensión `KHR_materials_unlit`
  *   y primitivas `LINES` (mode 1) sin atributos de normales de superficie para prevenir cierres inesperados.
- * - Búfer binario con alineación estricta de 4 bytes en encabezados y chunks.
+ * - Mapeado de textura de relieve y oclusión ambiental de puntadas de crochet (PBR Stitch Relief)
+ *   mediante atributo `TEXCOORD_0`, muestreador con repetición (`REPEAT`), y estampa PNG incrustada
+ *   modulando reactivamente el color de la lana en Filament (`baseColorTexture`).
+ * - Búfer binario con alineación estricta de 4 bytes en encabezados, chunks y bufferViews.
  * - Compatible directamente con Google Filament [com.google.android.filament.utils.ModelViewer.loadModelGlb].
  */
 object GlbMeshBuilder {
@@ -24,17 +27,19 @@ object GlbMeshBuilder {
     /**
      * Construye un [ByteBuffer] directo que contiene un archivo .glb válido listo para Filament.
      *
-     * @param mesh Geometría triangulada con posiciones, normales e índices.
+     * @param mesh Geometría triangulada con posiciones, normales, coordenadas UV e índices.
      * @param yarnColor Color base difuso de la lana (por defecto Terracotta).
      * @param roughness Factor de rugosidad PBR (0.9 para lana/textil).
      * @param isWireframe Si es true, genera aristas glTF LINES con shader Unlit en SageGreen.
+     * @param stitchTexturePng Imagen PNG personalizada para el relieve del punto (por defecto la estampa de [CrochetTextureGenerator]).
      * @return [ByteBuffer] directo posicionado en 0 con capacidad exacta del GLB.
      */
     fun buildGlb(
         mesh: MeshGeometry,
         yarnColor: Color = Color(0xFFE06D53),
         roughness: Float = 0.9f,
-        isWireframe: Boolean = false
+        isWireframe: Boolean = false,
+        stitchTexturePng: ByteArray? = null
     ): ByteBuffer {
         val vertexCount = mesh.vertexCount
 
@@ -85,7 +90,7 @@ object GlbMeshBuilder {
             maxX = 0f; maxY = 0f; maxZ = 0f
         }
 
-        // Longitudes de datos binarios
+        // Longitudes de datos binarios base
         val posByteLength = vertexCount * 3 * 4
         val rawIndByteLength = indexCount * 2
         val indPadding = if (rawIndByteLength % 4 != 0) 4 - (rawIndByteLength % 4) else 0
@@ -98,6 +103,16 @@ object GlbMeshBuilder {
         val b = effectiveColor.blue
 
         val hasVertexColors = !isWireframe && mesh.vertexColors.isNotEmpty() && mesh.vertexColors.size >= vertexCount * 4
+        val hasUvs = !isWireframe && mesh.vertexUvs.isNotEmpty() && mesh.vertexUvs.size >= vertexCount * 2
+
+        val stitchPng = if (hasUvs) {
+            stitchTexturePng ?: CrochetTextureGenerator.defaultStitchTexturePng
+        } else {
+            null
+        }
+        val rawImgByteLength = stitchPng?.size ?: 0
+        val imgPadding = if (rawImgByteLength % 4 != 0) 4 - (rawImgByteLength % 4) else 0
+        val imgByteLength = rawImgByteLength + imgPadding
 
         val jsonString: String
         val totalBinLength: Int
@@ -190,8 +205,324 @@ object GlbMeshBuilder {
   ]
 }
 """.trim()
+        } else if (hasUvs && hasVertexColors) {
+            // SÓLIDO PBR MULTICROMÁTICO CON TEXTURA DE RELIEVE (Jacquard / SM-068 / SM-069)
+            val normByteLength = vertexCount * 3 * 4
+            val colorByteLength = vertexCount * 4 * 4
+            val uvByteLength = vertexCount * 2 * 4
+
+            val posOffset = 0
+            val normOffset = posByteLength
+            val colorOffset = normOffset + normByteLength
+            val uvOffset = colorOffset + colorByteLength
+            val indOffset = uvOffset + uvByteLength
+            val imgOffset = indOffset + indByteLength
+            totalBinLength = imgOffset + imgByteLength
+
+            jsonString = """
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "StitchMesh3D Wool PBR Textured Multicolored Generator"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [0]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9729,
+      "wrapS": 10497,
+      "wrapT": 10497
+    }
+  ],
+  "images": [
+    {
+      "bufferView": 5,
+      "mimeType": "image/png",
+      "name": "CrochetStitchRelief"
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "materials": [
+    {
+      "name": "WoolPbrMaterial",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+        "baseColorTexture": {
+          "index": 0
+        },
+        "roughnessFactor": $roughness,
+        "metallicFactor": 0.0
+      },
+      "doubleSided": true
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "COLOR_0": 2,
+            "TEXCOORD_0": 3
+          },
+          "indices": 4,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC3",
+      "min": [$minX, $minY, $minZ],
+      "max": [$maxX, $maxY, $maxZ]
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC4"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 4,
+      "byteOffset": 0,
+      "componentType": 5123,
+      "count": $indexCount,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": $posOffset,
+      "byteLength": $posByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $normOffset,
+      "byteLength": $normByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $colorOffset,
+      "byteLength": $colorByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $uvOffset,
+      "byteLength": $uvByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $indOffset,
+      "byteLength": $rawIndByteLength,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $imgOffset,
+      "byteLength": $rawImgByteLength
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": $totalBinLength
+    }
+  ]
+}
+""".trim()
+        } else if (hasUvs) {
+            // SÓLIDO PBR MONOCROMÁTICO CON TEXTURA DE RELIEVE (PBR Stitch Relief teñido con yarnColor)
+            val normByteLength = vertexCount * 3 * 4
+            val uvByteLength = vertexCount * 2 * 4
+
+            val posOffset = 0
+            val normOffset = posByteLength
+            val uvOffset = normOffset + normByteLength
+            val indOffset = uvOffset + uvByteLength
+            val imgOffset = indOffset + indByteLength
+            totalBinLength = imgOffset + imgByteLength
+
+            jsonString = """
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "StitchMesh3D Wool PBR Textured Generator"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "nodes": [0]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9729,
+      "wrapS": 10497,
+      "wrapT": 10497
+    }
+  ],
+  "images": [
+    {
+      "bufferView": 4,
+      "mimeType": "image/png",
+      "name": "CrochetStitchRelief"
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "materials": [
+    {
+      "name": "WoolPbrMaterial",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [$r, $g, $b, 1.0],
+        "baseColorTexture": {
+          "index": 0
+        },
+        "roughnessFactor": $roughness,
+        "metallicFactor": 0.0
+      },
+      "doubleSided": true
+    }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC3",
+      "min": [$minX, $minY, $minZ],
+      "max": [$maxX, $maxY, $maxZ]
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "byteOffset": 0,
+      "componentType": 5123,
+      "count": $indexCount,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": $posOffset,
+      "byteLength": $posByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $normOffset,
+      "byteLength": $normByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $uvOffset,
+      "byteLength": $uvByteLength,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $indOffset,
+      "byteLength": $rawIndByteLength,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $imgOffset,
+      "byteLength": $rawImgByteLength
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": $totalBinLength
+    }
+  ]
+}
+""".trim()
         } else if (hasVertexColors) {
-            // SÓLIDO PBR MULTICROMÁTICO (Jacquard / Tapestry / SM-069): Primitiva TRIANGLES con COLOR_0
+            // SÓLIDO PBR MULTICROMÁTICO SIN UV (Fallback)
             val normByteLength = vertexCount * 3 * 4
             val colorByteLength = vertexCount * 4 * 4
             val posOffset = 0
@@ -310,7 +641,7 @@ object GlbMeshBuilder {
 }
 """.trim()
         } else {
-            // SÓLIDO PBR MONOCROMÁTICO: Primitiva TRIANGLES (mode 4) con normales y WoolPbrMaterial
+            // SÓLIDO PBR MONOCROMÁTICO SIN UV (Fallback)
             val normByteLength = vertexCount * 3 * 4
             val posOffset = 0
             val normOffset = posByteLength
@@ -463,6 +794,14 @@ object GlbMeshBuilder {
                     byteBuffer.putFloat(c)
                 }
             }
+
+            if (hasUvs) {
+                // Payload binario: TEXCOORD_0 (Float2: UV)
+                for (i in 0 until (vertexCount * 2)) {
+                    val uv = if (i < mesh.vertexUvs.size) mesh.vertexUvs[i] else 0f
+                    byteBuffer.putFloat(uv)
+                }
+            }
         }
 
         // Payload binario: INDICES (Unsigned Short)
@@ -470,9 +809,19 @@ object GlbMeshBuilder {
             byteBuffer.putShort(indicesList[i])
         }
 
-        // Rellenar padding binario con ceros (0x00)
+        // Rellenar padding binario de índices con ceros (0x00)
         repeat(indPadding) {
             byteBuffer.put(0x00.toByte())
+        }
+
+        if (hasUvs && stitchPng != null) {
+            // Payload binario: Imagen PNG
+            byteBuffer.put(stitchPng)
+
+            // Rellenar padding binario de imagen con ceros (0x00)
+            repeat(imgPadding) {
+                byteBuffer.put(0x00.toByte())
+            }
         }
 
         byteBuffer.flip()

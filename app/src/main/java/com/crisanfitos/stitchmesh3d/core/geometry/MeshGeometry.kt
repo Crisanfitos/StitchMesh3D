@@ -15,7 +15,8 @@ data class MeshGeometry(
     val vertexCount: Int,
     val triangleCount: Int,
     val vertexNormals: FloatArray = FloatArray(vertexPositions.size),
-    val vertexColors: FloatArray = FloatArray(0)
+    val vertexColors: FloatArray = FloatArray(0),
+    val vertexUvs: FloatArray = FloatArray(0)
 ) {
     /**
      * Retorna las coordenadas [X, Y, Z] del vértice en milímetros.
@@ -119,6 +120,33 @@ data class MeshGeometry(
     }
 
     /**
+     * Retorna las coordenadas de textura [U, V] del vértice.
+     */
+    fun getVertexUv(index: Int): FloatArray {
+        require(index in 0 until vertexCount) { "Índice de vértice fuera de rango: $index (total: $vertexCount)" }
+        if (vertexUvs.isEmpty() || (index * 2 + 1) >= vertexUvs.size) {
+            return floatArrayOf(0f, 0f)
+        }
+        return floatArrayOf(
+            vertexUvs[index * 2],
+            vertexUvs[index * 2 + 1]
+        )
+    }
+
+    /**
+     * Genera un [java.nio.FloatBuffer] directo en memoria nativa con orden de bytes del sistema
+     * conteniendo los pares [U, V] por vértice para Filament TEXCOORD_0.
+     */
+    fun toDirectUvBuffer(): java.nio.FloatBuffer {
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(vertexUvs.size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
+        floatBuffer.put(vertexUvs)
+        floatBuffer.flip()
+        return floatBuffer
+    }
+
+    /**
      * Calcula la envolvente tridimensional (Bounding Box) de la geometría en milímetros (RF-2.2, RF-3.3).
      */
     fun computeBoundingBox(): BoundingBox3D {
@@ -166,6 +194,7 @@ data class MeshGeometry(
         if (!indices.contentEquals(other.indices)) return false
         if (!vertexNormals.contentEquals(other.vertexNormals)) return false
         if (!vertexColors.contentEquals(other.vertexColors)) return false
+        if (!vertexUvs.contentEquals(other.vertexUvs)) return false
         if (vertexCount != other.vertexCount) return false
         if (triangleCount != other.triangleCount) return false
 
@@ -177,6 +206,7 @@ data class MeshGeometry(
         result = 31 * result + indices.contentHashCode()
         result = 31 * result + vertexNormals.contentHashCode()
         result = 31 * result + vertexColors.contentHashCode()
+        result = 31 * result + vertexUvs.contentHashCode()
         result = 31 * result + vertexCount
         result = 31 * result + triangleCount
         return result
