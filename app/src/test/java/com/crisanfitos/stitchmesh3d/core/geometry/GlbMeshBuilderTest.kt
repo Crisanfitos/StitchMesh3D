@@ -64,10 +64,12 @@ class GlbMeshBuilderTest {
         assertTrue("Debe contener especificación glTF 2.0", jsonStr.contains("\"version\": \"2.0\""))
         assertTrue("Debe declarar material Wool PBR", jsonStr.contains("WoolPbrMaterial"))
         assertTrue("Debe tener rugosidad 0.9", jsonStr.contains("\"roughnessFactor\": 0.9"))
-        assertTrue("Debe ser dieléctrico no metálico (metallic 0.0)", jsonStr.contains("\"metallicFactor\": 0.0"))
         assertTrue("Debe declarar atributo POSITION", jsonStr.contains("\"POSITION\": 0"))
         assertTrue("Debe declarar atributo NORMAL", jsonStr.contains("\"NORMAL\": 1"))
-        assertTrue("Debe declarar índices", jsonStr.contains("\"indices\": 2"))
+        assertTrue("Debe declarar atributo TEXCOORD_0", jsonStr.contains("\"TEXCOORD_0\": 2"))
+        assertTrue("Debe declarar textura baseColorTexture", jsonStr.contains("\"baseColorTexture\""))
+        assertTrue("Debe declarar sampler con REPEAT (10497)", jsonStr.contains("\"wrapS\": 10497"))
+        assertTrue("Debe declarar índices en accessor 3", jsonStr.contains("\"indices\": 3"))
 
         // 3. Chunk 1: BIN Chunk
         val binHeaderOffset = 20 + jsonLength

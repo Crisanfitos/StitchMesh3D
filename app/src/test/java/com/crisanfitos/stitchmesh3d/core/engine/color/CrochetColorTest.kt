@@ -253,9 +253,10 @@ class CrochetColorTest {
         val jsonStr = String(jsonBytes, Charsets.UTF_8)
 
         assertTrue("Debe declarar atributo COLOR_0", jsonStr.contains("\"COLOR_0\": 2"))
+        assertTrue("Debe declarar atributo TEXCOORD_0", jsonStr.contains("\"TEXCOORD_0\": 3"))
         assertTrue("Debe tener baseColorFactor unitario para no tintar los colores de vértice",
             jsonStr.contains("\"baseColorFactor\": [1.0, 1.0, 1.0, 1.0]"))
-        assertTrue("Debe declarar índices en accessor 3", jsonStr.contains("\"indices\": 3"))
+        assertTrue("Debe declarar índices en accessor 4", jsonStr.contains("\"indices\": 4"))
     }
 
     @Test

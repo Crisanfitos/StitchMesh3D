@@ -40,7 +40,8 @@ object AdaptiveTessellator {
                 vertexCount = 0,
                 triangleCount = 0,
                 vertexNormals = FloatArray(0),
-                vertexColors = FloatArray(0)
+                vertexColors = FloatArray(0),
+                vertexUvs = FloatArray(0)
             )
         }
 
@@ -54,6 +55,7 @@ object AdaptiveTessellator {
 
         val positionsList = ArrayList<Float>()
         val colorsList = ArrayList<Float>()
+        val uvsList = ArrayList<Float>()
 
         // 1. Vértice polar (índice 0 si está activo)
         if (hasPole) {
@@ -69,6 +71,9 @@ object AdaptiveTessellator {
             colorsList.add(poleRgba[1])
             colorsList.add(poleRgba[2])
             colorsList.add(poleRgba[3])
+
+            uvsList.add(0.5f)
+            uvsList.add(0.0f)
             currentOffset = 1
         }
 
@@ -91,6 +96,11 @@ object AdaptiveTessellator {
                 colorsList.add(rgba[1])
                 colorsList.add(rgba[2])
                 colorsList.add(rgba[3])
+
+                val u = j.toFloat()
+                val vCoord = (r + 1).toFloat()
+                uvsList.add(u)
+                uvsList.add(vCoord)
                 currentOffset++
 
                 if (isBlo) {
@@ -105,6 +115,9 @@ object AdaptiveTessellator {
                     colorsList.add(rgba[1])
                     colorsList.add(rgba[2])
                     colorsList.add(rgba[3])
+
+                    uvsList.add(u)
+                    uvsList.add(vCoord)
                     currentOffset++
                 } else {
                     outIndices[r][j] = inIdx
@@ -120,6 +133,7 @@ object AdaptiveTessellator {
         } else {
             FloatArray(0)
         }
+        val uvs = FloatArray(uvsList.size) { uvsList[it] }
 
         // 3. Generación del búfer de índices triangulados
         val indexList = ArrayList<Short>()
@@ -168,7 +182,8 @@ object AdaptiveTessellator {
             vertexCount = totalVertices,
             triangleCount = triangleCount,
             vertexNormals = normals,
-            vertexColors = colors
+            vertexColors = colors,
+            vertexUvs = uvs
         )
     }
 
