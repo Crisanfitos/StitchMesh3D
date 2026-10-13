@@ -14,7 +14,8 @@ import com.crisanfitos.stitchmesh3d.ui.assembly.components.SceneGraphItem
 enum class GizmoMode {
     NONE,
     TRANSLATE,
-    ROTATE
+    ROTATE,
+    SNAP
 }
 
 /**
@@ -58,6 +59,15 @@ sealed interface AssemblyIntent : ViewIntent {
     data class UpdateColor(val partId: String, val newColorHex: String) : AssemblyIntent
     data class UpdatePosition(val partId: String, val x: Float, val y: Float, val z: Float) : AssemblyIntent
     data class UpdateRotation(val partId: String, val rotX: Float, val rotY: Float, val rotZ: Float) : AssemblyIntent
+    data class SnapPartToSurface(
+        val sourcePartId: String,
+        val pointX: Float,
+        val pointY: Float,
+        val pointZ: Float,
+        val normalX: Float,
+        val normalY: Float,
+        val normalZ: Float
+    ) : AssemblyIntent
     data class ToggleMirror(val partId: String) : AssemblyIntent
     data class ResetOrigin(val partId: String) : AssemblyIntent
     data class SetGizmoMode(val mode: GizmoMode) : AssemblyIntent

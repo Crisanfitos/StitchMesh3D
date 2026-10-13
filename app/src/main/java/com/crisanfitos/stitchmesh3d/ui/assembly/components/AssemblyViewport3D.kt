@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
@@ -92,6 +93,7 @@ fun AssemblyViewport3D(
     onToggleWireframe: () -> Unit,
     onToggleGrid: () -> Unit,
     onToggleIsolatedMode: (() -> Unit)? = null,
+    onSurfaceSnap: ((sourcePartId: String, px: Float, py: Float, pz: Float, nx: Float, ny: Float, nz: Float) -> Unit)? = null,
     onOrbitRotate: (deltaYaw: Float, deltaPitch: Float) -> Unit,
     onZoomChange: (scaleMultiplier: Float) -> Unit,
     onPanChange: (deltaOffset: Offset) -> Unit,
@@ -125,6 +127,7 @@ fun AssemblyViewport3D(
             onPartSelected = onPartSelected,
             onPositionChange = onPositionChange,
             onRotationChange = onRotationChange,
+            onSurfaceSnap = onSurfaceSnap,
             onOrbitRotate = onOrbitRotate,
             onZoomChange = onZoomChange,
             onPanChange = onPanChange,
@@ -175,6 +178,24 @@ fun AssemblyViewport3D(
                     imageVector = Icons.AutoMirrored.Filled.RotateRight,
                     contentDescription = "Rotar pieza",
                     tint = if (gizmoMode == GizmoMode.ROTATE) Color.White else StitchMeshTextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            // Modo Anclaje / Snapping Superficial (SM-070)
+            IconButton(
+                onClick = { onGizmoModeChange(GizmoMode.SNAP) },
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = if (gizmoMode == GizmoMode.SNAP) StitchMeshTerracotta else Color.Transparent
+                ),
+                modifier = Modifier
+                    .size(32.dp)
+                    .testTag("gizmo_snap_btn")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.TouchApp,
+                    contentDescription = "Anclar sobre superficie (Snapping)",
+                    tint = if (gizmoMode == GizmoMode.SNAP) Color.White else StitchMeshTextSecondary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -367,6 +388,7 @@ private fun AssemblyInteractiveCanvas(
     onPartSelected: (partId: String) -> Unit,
     onPositionChange: (partId: String, x: Float, y: Float, z: Float) -> Unit,
     onRotationChange: (partId: String, rotX: Float, rotY: Float, rotZ: Float) -> Unit,
+    onSurfaceSnap: ((sourcePartId: String, px: Float, py: Float, pz: Float, nx: Float, ny: Float, nz: Float) -> Unit)? = null,
     onOrbitRotate: (deltaYaw: Float, deltaPitch: Float) -> Unit,
     onZoomChange: (scaleMultiplier: Float) -> Unit,
     onPanChange: (deltaOffset: Offset) -> Unit,
@@ -403,10 +425,58 @@ private fun AssemblyInteractiveCanvas(
 
     Canvas(
         modifier = modifier
-            .pointerInput(visibleParts, transformsByPartId, zoomScale, panOffset, orbitYaw, orbitPitch) {
+            .pointerInput(visibleParts, transformsByPartId, zoomScale, panOffset, orbitYaw, orbitPitch, gizmoMode, selectedPartId) {
                 detectTapGestures { tapOffset ->
                     val centerX = size.width / 2f + panOffset.x
                     val centerY = size.height / 2f + panOffset.y
+
+                    // Modo Anclaje / Snapping Superficial con Raycasting Möller-Trumbore (SM-070)
+                    if (gizmoMode == GizmoMode.SNAP && selectedPartId.isNotBlank() && onSurfaceSnap != null) {
+                        val ray = com.crisanfitos.stitchmesh3d.core.geometry.MeshRaycaster.screenPointToWorldRay(
+                            screenX = tapOffset.x,
+                            screenY = tapOffset.y,
+                            centerX = centerX,
+                            centerY = centerY,
+                            zoomScale = zoomScale,
+                            orbitYawDeg = orbitYaw,
+                            orbitPitchDeg = orbitPitch
+                        )
+
+                        var closestHit: com.crisanfitos.stitchmesh3d.core.geometry.RaycastHit? = null
+                        var minHitDist = Float.MAX_VALUE
+
+                        for (part in visibleParts) {
+                            if (part.id == selectedPartId) continue
+                            val transform = transformsByPartId[part.id] ?: continue
+                            val radiusMm = (part.roundCount * 1.5f + 16f) / 3.2f
+                            val proxyMesh = com.crisanfitos.stitchmesh3d.core.geometry.MeshRaycaster.createSphereMesh(
+                                radiusMm = radiusMm,
+                                rings = 10,
+                                sectors = 16,
+                                centerX = transform.posX,
+                                centerY = transform.posY,
+                                centerZ = transform.posZ
+                            )
+                            val hit = com.crisanfitos.stitchmesh3d.core.geometry.MeshRaycaster.castRay(proxyMesh, ray)
+                            if (hit != null && hit.distance < minHitDist) {
+                                minHitDist = hit.distance
+                                closestHit = hit
+                            }
+                        }
+
+                        if (closestHit != null) {
+                            onSurfaceSnap(
+                                selectedPartId,
+                                closestHit.point[0],
+                                closestHit.point[1],
+                                closestHit.point[2],
+                                closestHit.normal[0],
+                                closestHit.normal[1],
+                                closestHit.normal[2]
+                            )
+                            return@detectTapGestures
+                        }
+                    }
 
                     // Búsqueda de impacto en piezas proyectadas (picking por distancia)
                     var tappedPartId: String? = null
@@ -627,6 +697,37 @@ private fun DrawScope.drawCadGizmo(
 
             // Núcleo central
             drawCircle(color = StitchMeshTerracotta, radius = 5f, center = origin)
+        }
+
+        GizmoMode.SNAP -> {
+            // Retículo CAD / Diana de anclaje superficial (SM-070)
+            val reticleRadius = gizmoLength * 0.75f
+            drawCircle(
+                color = StitchMeshTerracotta,
+                radius = reticleRadius,
+                center = origin,
+                style = Stroke(width = 2.5f)
+            )
+            drawCircle(
+                color = StitchMeshSageGreen.copy(alpha = 0.5f),
+                radius = reticleRadius * 0.45f,
+                center = origin,
+                style = Stroke(width = 1.5f)
+            )
+            drawLine(
+                color = StitchMeshTerracotta,
+                start = Offset(origin.x - reticleRadius * 1.25f, origin.y),
+                end = Offset(origin.x + reticleRadius * 1.25f, origin.y),
+                strokeWidth = 2f
+            )
+            drawLine(
+                color = StitchMeshTerracotta,
+                start = Offset(origin.x, origin.y - reticleRadius * 1.25f),
+                end = Offset(origin.x, origin.y + reticleRadius * 1.25f),
+                strokeWidth = 2f
+            )
+            drawCircle(color = StitchMeshYarnGold, radius = 5f, center = origin)
+            drawCircle(color = StitchMeshNeutralDark, radius = 2.5f, center = origin)
         }
 
         GizmoMode.NONE -> {

@@ -242,6 +242,19 @@ fun MultiPartAssemblyScreen(
                             onToggleWireframe = { viewModel.processIntent(AssemblyIntent.ToggleWireframe) },
                             onToggleGrid = { viewModel.processIntent(AssemblyIntent.ToggleCoordinateGrid) },
                             onToggleIsolatedMode = { viewModel.processIntent(AssemblyIntent.ToggleIsolatedMode) },
+                            onSurfaceSnap = { id, x, y, z, nx, ny, nz ->
+                                viewModel.processIntent(
+                                    AssemblyIntent.SnapPartToSurface(
+                                        sourcePartId = id,
+                                        pointX = x,
+                                        pointY = y,
+                                        pointZ = z,
+                                        normalX = nx,
+                                        normalY = ny,
+                                        normalZ = nz
+                                    )
+                                )
+                            },
                             onOrbitRotate = { dy, dp -> viewModel.processIntent(AssemblyIntent.UpdateOrbit(dy, dp)) },
                             onZoomChange = { zoom -> viewModel.processIntent(AssemblyIntent.UpdateZoom(zoom)) },
                             onPanChange = { pan -> viewModel.processIntent(AssemblyIntent.UpdatePan(pan)) },
@@ -316,6 +329,19 @@ fun MultiPartAssemblyScreen(
                             onToggleWireframe = { viewModel.processIntent(AssemblyIntent.ToggleWireframe) },
                             onToggleGrid = { viewModel.processIntent(AssemblyIntent.ToggleCoordinateGrid) },
                             onToggleIsolatedMode = { viewModel.processIntent(AssemblyIntent.ToggleIsolatedMode) },
+                            onSurfaceSnap = { id, x, y, z, nx, ny, nz ->
+                                viewModel.processIntent(
+                                    AssemblyIntent.SnapPartToSurface(
+                                        sourcePartId = id,
+                                        pointX = x,
+                                        pointY = y,
+                                        pointZ = z,
+                                        normalX = nx,
+                                        normalY = ny,
+                                        normalZ = nz
+                                    )
+                                )
+                            },
                             onOrbitRotate = { dy, dp -> viewModel.processIntent(AssemblyIntent.UpdateOrbit(dy, dp)) },
                             onZoomChange = { zoom -> viewModel.processIntent(AssemblyIntent.UpdateZoom(zoom)) },
                             onPanChange = { pan -> viewModel.processIntent(AssemblyIntent.UpdatePan(pan)) },
