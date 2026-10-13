@@ -29,4 +29,14 @@ sealed class StitchMeshDestination(val route: String) {
      * Calibrador dimensional de tensión y muestra 10x10 (CYC).
      */
     data object TensionCalibration : StitchMeshDestination("tension_calibration")
+
+    /**
+     * Entorno CAD de ensamblado multipieza 3D con Scene Graph e Inspector (SM-055).
+     */
+    data object Assembly : StitchMeshDestination("assembly/{projectId}") {
+        const val ARG_PROJECT_ID = "projectId"
+
+        fun createRoute(projectId: String): String = "assembly/$projectId"
+    }
 }
+

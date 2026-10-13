@@ -98,6 +98,10 @@ fun StitchMeshNavHost(
                 },
                 onCalibrateTension = {
                     navController.navigate(StitchMeshDestination.TensionCalibration.route)
+                },
+                onNavigateToAssembly = {
+                    val targetId = projectId ?: "amigurumi-project"
+                    navController.navigate(StitchMeshDestination.Assembly.createRoute(targetId))
                 }
             )
         }
@@ -105,6 +109,23 @@ fun StitchMeshNavHost(
         // 4. Calibración de Tensión (10x10 cm Swatch) & Comparativa Paramétrica
         composable(route = StitchMeshDestination.TensionCalibration.route) {
             com.crisanfitos.stitchmesh3d.ui.tension.TensionCalibratorScreen(
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        // 5. Ensamblador 3D Multipieza con Scene Graph e Inspector CAD (SM-055)
+        composable(
+            route = StitchMeshDestination.Assembly.route,
+            arguments = listOf(
+                navArgument(StitchMeshDestination.Assembly.ARG_PROJECT_ID) {
+                    type = NavType.StringType
+                    nullable = false
+                }
+            )
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString(StitchMeshDestination.Assembly.ARG_PROJECT_ID)
+            com.crisanfitos.stitchmesh3d.ui.assembly.MultiPartAssemblyScreen(
+                projectId = projectId,
                 onBackClick = { navController.popBackStack() }
             )
         }
