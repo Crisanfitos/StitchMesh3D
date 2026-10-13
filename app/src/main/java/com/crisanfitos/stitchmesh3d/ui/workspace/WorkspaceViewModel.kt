@@ -8,6 +8,7 @@ import com.crisanfitos.stitchmesh3d.core.engine.validator.ArithmeticValidator
 import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnGaugeStandard
 import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
 import com.crisanfitos.stitchmesh3d.core.geometry.AdaptiveTessellator
+import com.crisanfitos.stitchmesh3d.core.geometry.PlanarMeshGenerator
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfile
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfileGenerator
 import com.crisanfitos.stitchmesh3d.core.geometry.StuffingInflationFilter
@@ -539,42 +540,75 @@ class WorkspaceViewModel @Inject constructor(
                             stitchHeightMm = hookMm * 1.25f,
                             stitchThicknessMm = hookMm * 0.55f
                         )
-                        val ringProfiles = ArrayList<RingProfile>()
-                        var prevRing: RingProfile? = null
-                        for ((idx, r) in effectiveRounds.withIndex()) {
-                            val parsed = CrochetParser.parse(r.rawInstruction)
-                            // Expansión polar de Anillo Mágico a N puntos individuales para generar perfil circunferencial completo
-                            val instances = parsed.ast?.flatten()?.flatMap { inst ->
-                                if (inst.stitchType is StitchType.MagicRing) {
-                                    val count = (inst.stitchType as StitchType.MagicRing).stitchCount
-                                    List(count) {
-                                        com.crisanfitos.stitchmesh3d.core.engine.parser.StitchInstance(
-                                            stitchType = StitchType.SingleCrochet,
-                                            indexInRound = 0,
-                                            colorHex = inst.colorHex
-                                        )
-                                    }
-                                } else {
-                                    listOf(inst)
-                                }
-                            } ?: emptyList()
+                        val currentTopology = _state.value.parts.find { it.id == _state.value.selectedPartId }?.topologyType
+                            ?: PartTopologyType.CLOSED_FILLED
+                        val partColor = _state.value.parts.find { it.id == _state.value.selectedPartId }?.colorHex ?: "#E06D53"
 
-                            if (instances.isNotEmpty()) {
-                                val ring = RingProfileGenerator.generateRingFromInstances(idx + 1, instances, gauge, prevRing)
-                                ringProfiles.add(ring)
-                                prevRing = ring
+                        if (currentTopology == PartTopologyType.FLAT_PANEL) {
+                            val allRoundInstances = ArrayList<List<com.crisanfitos.stitchmesh3d.core.engine.parser.StitchInstance>>()
+                            for (r in effectiveRounds) {
+                                val parsed = CrochetParser.parse(r.rawInstruction)
+                                val instances = parsed.ast?.flatten()?.flatMap { inst ->
+                                    if (inst.stitchType is StitchType.MagicRing) {
+                                        val count = (inst.stitchType as StitchType.MagicRing).stitchCount
+                                        List(count) {
+                                            com.crisanfitos.stitchmesh3d.core.engine.parser.StitchInstance(
+                                                stitchType = StitchType.SingleCrochet,
+                                                indexInRound = 0,
+                                                colorHex = inst.colorHex ?: r.colorHex ?: partColor
+                                            )
+                                        }
+                                    } else {
+                                        listOf(inst.copy(colorHex = inst.colorHex ?: r.colorHex ?: partColor))
+                                    }
+                                } ?: emptyList()
+                                if (instances.isNotEmpty()) {
+                                    allRoundInstances.add(instances)
+                                }
                             }
+                            if (allRoundInstances.isNotEmpty()) {
+                                PlanarMeshGenerator.generatePlanarMesh(
+                                    rounds = allRoundInstances,
+                                    gauge = gauge,
+                                    defaultColorHex = partColor
+                                )
+                            } else null
+                        } else {
+                            val ringProfiles = ArrayList<RingProfile>()
+                            var prevRing: RingProfile? = null
+                            for ((idx, r) in effectiveRounds.withIndex()) {
+                                val parsed = CrochetParser.parse(r.rawInstruction)
+                                val instances = parsed.ast?.flatten()?.flatMap { inst ->
+                                    if (inst.stitchType is StitchType.MagicRing) {
+                                        val count = (inst.stitchType as StitchType.MagicRing).stitchCount
+                                        List(count) {
+                                            com.crisanfitos.stitchmesh3d.core.engine.parser.StitchInstance(
+                                                stitchType = StitchType.SingleCrochet,
+                                                indexInRound = 0,
+                                                colorHex = inst.colorHex ?: r.colorHex ?: partColor
+                                            )
+                                        }
+                                    } else {
+                                        listOf(inst.copy(colorHex = inst.colorHex ?: r.colorHex ?: partColor))
+                                    }
+                                } ?: emptyList()
+
+                                if (instances.isNotEmpty()) {
+                                    val ring = RingProfileGenerator.generateRingFromInstances(idx + 1, instances, gauge, prevRing)
+                                    ringProfiles.add(ring)
+                                    prevRing = ring
+                                }
+                            }
+                            if (ringProfiles.isNotEmpty()) {
+                                val includePolarCap = (currentTopology == PartTopologyType.CLOSED_FILLED)
+                                val rawMesh = AdaptiveTessellator.tessellate(ringProfiles, includePolarCap = includePolarCap, defaultColorHex = partColor)
+                                if (_state.value.isStuffingSimulationEnabled) {
+                                    StuffingInflationFilter.applyInflation(rawMesh, currentTopology)
+                                } else {
+                                    rawMesh
+                                }
+                            } else null
                         }
-                        if (ringProfiles.isNotEmpty()) {
-                            val rawMesh = AdaptiveTessellator.tessellate(ringProfiles, includePolarCap = true)
-                            val currentTopology = _state.value.parts.find { it.id == _state.value.selectedPartId }?.topologyType
-                                ?: PartTopologyType.CLOSED_FILLED
-                            if (_state.value.isStuffingSimulationEnabled) {
-                                StuffingInflationFilter.applyInflation(rawMesh, currentTopology)
-                            } else {
-                                rawMesh
-                            }
-                        } else null
                     } catch (_: Throwable) {
                         null
                     }

@@ -31,9 +31,9 @@ object CrochetLexer {
         RegexOption.IGNORE_CASE
     )
 
-    // Regex para token de Anillo Mágico: "AM [6]", "MR [6]", "AM 6", "MR 8"
+    // Regex para token de Anillo Mágico: "AM [6]", "MR [6]", "AM 6", "MR 8", "AM 6 pb", "anillo mágico 6 pb", "magic ring 6 sc"
     private val magicRingTokenRegex = Regex(
-        """^(?:am|mr)\s*\[?(\d+)\]?""",
+        """^(?:anillo\s*m[aá]gico|magic\s*ring|am|mr)\s*(?:de\s*)?\[?(\d+)\]?(?:\s*(?:pb|sc|mp|pts?|puntos?|sts?))?""",
         RegexOption.IGNORE_CASE
     )
 

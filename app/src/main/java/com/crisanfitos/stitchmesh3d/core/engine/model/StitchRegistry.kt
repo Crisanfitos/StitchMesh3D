@@ -50,7 +50,10 @@ object StitchRegistry {
         }
     }
 
-    private val magicRingRegex = Regex("""^(?:am|mr)\s*\[?(\d+)\]?$""", RegexOption.IGNORE_CASE)
+    private val magicRingRegex = Regex(
+        """^(?:anillo\s*m[aá]gico|magic\s*ring|am|mr)\s*(?:de\s*)?\[?(\d+)\]?(?:\s*(?:pb|sc|mp|pts?|puntos?|sts?))?$""",
+        RegexOption.IGNORE_CASE
+    )
 
     /**
      * Devuelve la lista de todas las definiciones estándar no dinámicas.
