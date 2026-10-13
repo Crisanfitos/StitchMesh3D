@@ -109,10 +109,18 @@ object CrochetParser {
                     }
                 }
 
-                // Caso D: Puntada aislada sin número previo (ej. "aum", "pb", "AM [6]") -> count = 1
+                // Caso D: Puntada aislada o seguida de número (ej. "aum", "pb", "AM [6]", "cad 10", "ch 10")
                 is CrochetToken.StitchToken -> {
-                    nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = 1, colorHex = activeColor))
-                    cursor++
+                    if (token.stitchType is com.crisanfitos.stitchmesh3d.core.engine.model.StitchType.Chain &&
+                        cursor + 1 < tokens.size && tokens[cursor + 1] is CrochetToken.Number
+                    ) {
+                        val numToken = tokens[cursor + 1] as CrochetToken.Number
+                        nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = numToken.value, colorHex = activeColor))
+                        cursor += 2
+                    } else {
+                        nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = 1, colorHex = activeColor))
+                        cursor++
+                    }
                 }
 
                 // Caso E: Apertura de grupo: '[' o '(' (ej. "[1 pb, 1 aum] * 6")
@@ -266,8 +274,16 @@ object CrochetParser {
             }
 
             if (token is CrochetToken.StitchToken) {
-                nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = 1, colorHex = groupColor))
-                cursor++
+                if (token.stitchType is com.crisanfitos.stitchmesh3d.core.engine.model.StitchType.Chain &&
+                    cursor + 1 < tokens.size && tokens[cursor + 1] is CrochetToken.Number
+                ) {
+                    val numToken = tokens[cursor + 1] as CrochetToken.Number
+                    nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = numToken.value, colorHex = groupColor))
+                    cursor += 2
+                } else {
+                    nodes.add(CrochetAstNode.StitchNode(token.stitchType, count = 1, colorHex = groupColor))
+                    cursor++
+                }
                 continue
             }
 

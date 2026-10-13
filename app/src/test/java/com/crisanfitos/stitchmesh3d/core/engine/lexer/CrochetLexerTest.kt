@@ -150,4 +150,43 @@ class CrochetLexerTest {
         assertEquals(1, result.unknownTokens.size)
         assertEquals("xyz123", result.unknownTokens[0].raw)
     }
+
+    @Test
+    fun `tokenizes literal magic ring with stitch suffixes`() {
+        val r1 = CrochetLexer.tokenize("V1: AM 6 pb (6)")
+        val s1 = r1.tokens.filterIsInstance<CrochetToken.StitchToken>()
+        assertEquals(1, s1.size)
+        assertTrue(s1[0].stitchType is StitchType.MagicRing)
+        assertEquals(6, (s1[0].stitchType as StitchType.MagicRing).stitchCount)
+
+        val r2 = CrochetLexer.tokenize("V1: anillo mágico 6 pb (6)")
+        val s2 = r2.tokens.filterIsInstance<CrochetToken.StitchToken>()
+        assertEquals(1, s2.size)
+        assertTrue(s2[0].stitchType is StitchType.MagicRing)
+        assertEquals(6, (s2[0].stitchType as StitchType.MagicRing).stitchCount)
+
+        val r3 = CrochetLexer.tokenize("V1: MR 8 sc (8)")
+        val s3 = r3.tokens.filterIsInstance<CrochetToken.StitchToken>()
+        assertEquals(1, s3.size)
+        assertTrue(s3[0].stitchType is StitchType.MagicRing)
+        assertEquals(8, (s3[0].stitchType as StitchType.MagicRing).stitchCount)
+    }
+
+    @Test
+    fun `parses foundation chain variants in CrochetParser`() {
+        val p1 = com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser.parse("V1: 10 cad (10)")
+        assertTrue(p1.isSuccess)
+        val s1 = p1.ast?.children?.filterIsInstance<com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetAstNode.StitchNode>()
+        assertEquals(1, s1?.size)
+        assertEquals(StitchType.Chain, s1?.get(0)?.stitchType)
+        assertEquals(10, s1?.get(0)?.count)
+
+        val p2 = com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser.parse("V1: cad 10 (10)")
+        assertTrue(p2.isSuccess)
+        val s2 = p2.ast?.children?.filterIsInstance<com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetAstNode.StitchNode>()
+        assertEquals(1, s2?.size)
+        assertEquals(StitchType.Chain, s2?.get(0)?.stitchType)
+        assertEquals(10, s2?.get(0)?.count)
+    }
 }
+
