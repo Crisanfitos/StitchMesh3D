@@ -103,7 +103,14 @@ object AdaptiveTessellator {
                 uvsList.add(vCoord)
                 currentOffset++
 
-                if (isBlo) {
+                val nextRing = validRings.getOrNull(r + 1)
+                val closestNext = nextRing?.findClosestVertex(v.theta)
+                val nextColor = closestNext?.colorHex
+                    ?: nextRing?.vertices?.firstOrNull()?.colorHex
+                    ?: vColor
+                val hasColorChange = nextRing != null && nextColor != vColor
+
+                if (isBlo || hasColorChange) {
                     val outIdx = currentOffset.toShort()
                     outIndices[r][j] = outIdx
                     // Vértice duplicado en la misma posición espacial exacta para preservar contigüidad
@@ -111,10 +118,17 @@ object AdaptiveTessellator {
                     positionsList.add(v.y.toFloat())
                     positionsList.add(v.z.toFloat())
 
-                    colorsList.add(rgba[0])
-                    colorsList.add(rgba[1])
-                    colorsList.add(rgba[2])
-                    colorsList.add(rgba[3])
+                    // En frontera cromática, el vértice saliente outIdx adopta el color del siguiente tramo
+                    val outColorRgba = if (hasColorChange) {
+                        CrochetColorHelper.toRgbaFloats(nextColor)
+                    } else {
+                        rgba
+                    }
+
+                    colorsList.add(outColorRgba[0])
+                    colorsList.add(outColorRgba[1])
+                    colorsList.add(outColorRgba[2])
+                    colorsList.add(outColorRgba[3])
 
                     uvsList.add(u)
                     uvsList.add(vCoord)
@@ -127,7 +141,9 @@ object AdaptiveTessellator {
 
         val totalVertices = currentOffset
         val positions = FloatArray(positionsList.size) { positionsList[it] }
-        val hasCustomColors = validRings.any { r -> r.vertices.any { it.colorHex != null } }
+        val hasCustomColors = validRings.any { r ->
+            r.vertices.any { it.colorHex != null }
+        } || (defaultColorHex.isNotEmpty() && defaultColorHex != "#E06D53")
         val colors = if (hasCustomColors) {
             FloatArray(colorsList.size) { colorsList[it] }
         } else {
@@ -328,17 +344,24 @@ object AdaptiveTessellator {
                     normals[inIdx * 3 + 2] = revNz
                 }
 
-                // Vértice duplicado para BLO
-                if (isBlo && outIdx != inIdx) {
-                    val ofnx = faceNormalAccum[outIdx * 3]
-                    val ofny = faceNormalAccum[outIdx * 3 + 1]
-                    val ofnz = faceNormalAccum[outIdx * 3 + 2]
-                    val oflen = sqrt(ofnx * ofnx + ofny * ofny + ofnz * ofnz)
-                    if (oflen > 1e-6f) {
-                        normals[outIdx * 3] = ofnx / oflen
-                        normals[outIdx * 3 + 1] = ofny / oflen
-                        normals[outIdx * 3 + 2] = ofnz / oflen
+                // Vértice duplicado para BLO o cambio cromático
+                if (outIdx != inIdx) {
+                    if (isBlo) {
+                        val ofnx = faceNormalAccum[outIdx * 3]
+                        val ofny = faceNormalAccum[outIdx * 3 + 1]
+                        val ofnz = faceNormalAccum[outIdx * 3 + 2]
+                        val oflen = sqrt(ofnx * ofnx + ofny * ofny + ofnz * ofnz)
+                        if (oflen > 1e-6f) {
+                            normals[outIdx * 3] = ofnx / oflen
+                            normals[outIdx * 3 + 1] = ofny / oflen
+                            normals[outIdx * 3 + 2] = ofnz / oflen
+                        } else {
+                            normals[outIdx * 3] = normals[inIdx * 3]
+                            normals[outIdx * 3 + 1] = normals[inIdx * 3 + 1]
+                            normals[outIdx * 3 + 2] = normals[inIdx * 3 + 2]
+                        }
                     } else {
+                        // Frontera cromática: normal suave continua sin arista viva
                         normals[outIdx * 3] = normals[inIdx * 3]
                         normals[outIdx * 3 + 1] = normals[inIdx * 3 + 1]
                         normals[outIdx * 3 + 2] = normals[inIdx * 3 + 2]

@@ -52,6 +52,7 @@ fun WorkspaceScreen(
         onAssemblyClick = onNavigateToAssembly,
         onPartSelected = { viewModel.processIntent(WorkspaceIntent.SelectPart(it)) },
         onRoundSelected = { viewModel.processIntent(WorkspaceIntent.SelectRound(it)) },
+        onRoundColorChanged = { id, hex -> viewModel.processIntent(WorkspaceIntent.ChangeRoundColor(id, hex)) },
         onInstructionChanged = { id, text -> viewModel.processIntent(WorkspaceIntent.EditRoundInstruction(id, text)) },
         onAddRound = { viewModel.processIntent(WorkspaceIntent.AddRound) },
         onDeleteRound = { viewModel.processIntent(WorkspaceIntent.DeleteRound(it)) },

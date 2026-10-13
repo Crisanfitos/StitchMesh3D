@@ -82,6 +82,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextDisabled
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshYarnGold
+import com.crisanfitos.stitchmesh3d.ui.assembly.components.YarnColorPickerDialog
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.LinterInlineErrorCard
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundExternalEdit
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemRow
@@ -118,6 +119,7 @@ fun AdaptiveWorkspaceScaffold(
     modifier: Modifier = Modifier,
     selectedRoundId: String? = null,
     onRoundSelected: ((String) -> Unit)? = null,
+    onRoundColorChanged: ((roundId: String, newColorHex: String) -> Unit)? = null,
     showQuickKeyboard: Boolean = true,
     onDeleteRound: ((roundId: String) -> Unit)? = null,
     onAddPart: (() -> Unit)? = null,
@@ -137,6 +139,7 @@ fun AdaptiveWorkspaceScaffold(
     }
     val activeRoundId = selectedRoundId ?: internalSelectedRoundId
     var isKeyboardVisible by remember { mutableStateOf(showQuickKeyboard) }
+    var colorPickerTargetRound by remember { mutableStateOf<RoundItemUiModel?>(null) }
 
     LaunchedEffect(selectedRoundId) {
         if (selectedRoundId != null) {
@@ -334,6 +337,9 @@ fun AdaptiveWorkspaceScaffold(
                                     newlyCreatedRoundId = newlyCreatedRoundId,
                                     onConsumeFocus = onConsumeFocus,
                                     externalEdit = externalEdit,
+                                    onColorClick = { round ->
+                                        colorPickerTargetRound = round
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
 
@@ -495,6 +501,9 @@ fun AdaptiveWorkspaceScaffold(
                                         newlyCreatedRoundId = newlyCreatedRoundId,
                                         onConsumeFocus = onConsumeFocus,
                                         externalEdit = externalEdit,
+                                        onColorClick = { round ->
+                                            colorPickerTargetRound = round
+                                        },
                                         modifier = Modifier.weight(1f)
                                     )
 
@@ -536,6 +545,18 @@ fun AdaptiveWorkspaceScaffold(
             }
         }
     }
+
+    colorPickerTargetRound?.let { targetRound ->
+        YarnColorPickerDialog(
+            partName = "Vuelta V${targetRound.roundNumber}",
+            initialColorHex = targetRound.colorHex ?: "#E06D53",
+            onDismiss = { colorPickerTargetRound = null },
+            onColorSelected = { newHex ->
+                onRoundColorChanged?.invoke(targetRound.id, newHex)
+                colorPickerTargetRound = null
+            }
+        )
+    }
 }
 
 /**
@@ -553,7 +574,8 @@ private fun RoundEditorPane(
     onConsumeFocus: (() -> Unit)? = null,
     externalEdit: RoundExternalEdit? = null,
     onDeleteRound: ((roundId: String) -> Unit)? = null,
-    onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null
+    onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null,
+    onColorClick: ((RoundItemUiModel) -> Unit)? = null
 ) {
     // Vueltas ordenadas de forma descendente por número de vuelta (VN .. V1)
     val sortedRounds = remember(rounds) {
@@ -613,6 +635,7 @@ private fun RoundEditorPane(
                     },
                     onColorClick = {
                         onRoundSelected(round.id)
+                        onColorClick?.invoke(round)
                     },
                     onDeleteRound = if (onDeleteRound != null) {
                         { onDeleteRound(round.id) }
