@@ -3,6 +3,7 @@ package com.crisanfitos.stitchmesh3d.ui.assembly
 import androidx.compose.ui.geometry.Offset
 import com.crisanfitos.stitchmesh3d.core.mvi.BaseViewModel
 import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.PartTransformState
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.SceneGraphItem
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -142,6 +143,10 @@ class AssemblyViewModel @Inject constructor() :
 
             is AssemblyIntent.ToggleCoordinateGrid -> {
                 setState { copy(showCoordinateGrid = !showCoordinateGrid) }
+            }
+
+            is AssemblyIntent.ToggleIsolatedMode -> {
+                setState { copy(isIsolatedMode = !isIsolatedMode) }
             }
 
             is AssemblyIntent.UpdateOrbit -> {
@@ -406,6 +411,29 @@ class AssemblyViewModel @Inject constructor() :
                 transformsByPartId = defaultTransforms,
                 selectedPartId = "part-torso"
             )
+        }
+    }
+
+    /**
+     * Sincroniza las transformaciones espaciales calculadas en el ensamblador
+     * con una lista de piezas del modelo de dominio [ProjectPart] (SM-033, RF-4.2).
+     */
+    fun syncToProjectParts(domainParts: List<ProjectPart>): List<ProjectPart> {
+        val transforms = state.value.transformsByPartId
+        return domainParts.map { part ->
+            val t = transforms[part.id]
+            if (t != null) {
+                part.copy(
+                    transformPositionX = t.posX,
+                    transformPositionY = t.posY,
+                    transformPositionZ = t.posZ,
+                    transformRotationX = t.rotX,
+                    transformRotationY = t.rotY,
+                    transformRotationZ = t.rotZ
+                )
+            } else {
+                part
+            }
         }
     }
 }
