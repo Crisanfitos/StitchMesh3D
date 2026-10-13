@@ -19,3 +19,17 @@ data class ProjectPart(
     val createdAt: Long = System.currentTimeMillis(),
     val rounds: List<PatternRound> = emptyList()
 )
+
+/**
+ * Calcula la matriz afín 4x4 correspondiente a las coordenadas y rotaciones de esta pieza.
+ */
+fun ProjectPart.toTransformMatrix(): com.crisanfitos.stitchmesh3d.core.geometry.TransformMatrix4x4 {
+    return com.crisanfitos.stitchmesh3d.core.geometry.TransformMatrix4x4.fromTransform(
+        posX = transformPositionX,
+        posY = transformPositionY,
+        posZ = transformPositionZ,
+        rotXDeg = transformRotationX,
+        rotYDeg = transformRotationY,
+        rotZDeg = transformRotationZ
+    )
+}

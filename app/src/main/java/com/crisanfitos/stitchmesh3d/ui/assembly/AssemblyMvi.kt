@@ -37,7 +37,8 @@ data class AssemblyState(
     val showAddPartDialog: Boolean = false,
     val partActionTarget: SceneGraphItem? = null,
     val showRenamePartDialog: Boolean = false,
-    val showDeletePartDialog: Boolean = false
+    val showDeletePartDialog: Boolean = false,
+    val isIsolatedMode: Boolean = false
 ) : ViewState {
     val selectedPart: SceneGraphItem?
         get() = parts.find { it.id == selectedPartId }
@@ -62,6 +63,7 @@ sealed interface AssemblyIntent : ViewIntent {
     data class SetGizmoMode(val mode: GizmoMode) : AssemblyIntent
     data object ToggleWireframe : AssemblyIntent
     data object ToggleCoordinateGrid : AssemblyIntent
+    data object ToggleIsolatedMode : AssemblyIntent
     data class UpdateOrbit(val deltaYaw: Float, val deltaPitch: Float) : AssemblyIntent
     data class UpdateZoom(val scaleMultiplier: Float) : AssemblyIntent
     data class UpdatePan(val deltaOffset: Offset) : AssemblyIntent

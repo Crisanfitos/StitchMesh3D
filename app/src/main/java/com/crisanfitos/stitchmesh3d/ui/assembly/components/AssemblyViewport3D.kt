@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.ViewInAr
@@ -76,19 +77,21 @@ fun AssemblyViewport3D(
     parts: List<SceneGraphItem>,
     selectedPartId: String,
     transformsByPartId: Map<String, PartTransformState>,
-    gizmoMode: GizmoMode,
+    gizmoMode: GizmoMode = GizmoMode.TRANSLATE,
     isWireframe: Boolean,
     showGrid: Boolean,
     orbitYaw: Float,
     orbitPitch: Float,
     zoomScale: Float,
     panOffset: Offset,
+    isIsolatedMode: Boolean = false,
     onPartSelected: (partId: String) -> Unit,
     onPositionChange: (partId: String, x: Float, y: Float, z: Float) -> Unit,
     onRotationChange: (partId: String, rotX: Float, rotY: Float, rotZ: Float) -> Unit,
     onGizmoModeChange: (mode: GizmoMode) -> Unit,
     onToggleWireframe: () -> Unit,
     onToggleGrid: () -> Unit,
+    onToggleIsolatedMode: (() -> Unit)? = null,
     onOrbitRotate: (deltaYaw: Float, deltaPitch: Float) -> Unit,
     onZoomChange: (scaleMultiplier: Float) -> Unit,
     onPanChange: (deltaOffset: Offset) -> Unit,
@@ -114,6 +117,7 @@ fun AssemblyViewport3D(
             gizmoMode = gizmoMode,
             isWireframe = isWireframe,
             showGrid = showGrid,
+            isIsolatedMode = isIsolatedMode,
             orbitYaw = orbitYaw,
             orbitPitch = orbitPitch,
             zoomScale = zoomScale,
@@ -242,6 +246,26 @@ fun AssemblyViewport3D(
                 )
             }
 
+            // Toggle Modo Aislado vs Ensamblado Global (RF-4.2, SM-033)
+            if (onToggleIsolatedMode != null) {
+                IconButton(
+                    onClick = onToggleIsolatedMode,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = if (isIsolatedMode) StitchMeshSurfaceHigh else Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("toggle_isolated_mode_btn")
+                ) {
+                    Icon(
+                        imageVector = if (isIsolatedMode) Icons.Default.ViewInAr else Icons.Default.Layers,
+                        contentDescription = if (isIsolatedMode) "Modo aislado (solo pieza activa)" else "Modo ensamblado global (todas las piezas)",
+                        tint = if (isIsolatedMode) StitchMeshTerracotta else StitchMeshTextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
             // Reset Cámara
             IconButton(
                 onClick = onResetCamera,
@@ -335,6 +359,7 @@ private fun AssemblyInteractiveCanvas(
     gizmoMode: GizmoMode,
     isWireframe: Boolean,
     showGrid: Boolean,
+    isIsolatedMode: Boolean = false,
     orbitYaw: Float,
     orbitPitch: Float,
     zoomScale: Float,
@@ -347,6 +372,12 @@ private fun AssemblyInteractiveCanvas(
     onPanChange: (deltaOffset: Offset) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val visibleParts = if (isIsolatedMode) {
+        parts.filter { it.id == selectedPartId }
+    } else {
+        parts.filter { it.isVisible }
+    }
+
     val yawRad = Math.toRadians(orbitYaw.toDouble()).toFloat()
     val pitchRad = Math.toRadians(orbitPitch.toDouble()).toFloat()
 
@@ -372,7 +403,7 @@ private fun AssemblyInteractiveCanvas(
 
     Canvas(
         modifier = modifier
-            .pointerInput(parts, transformsByPartId, zoomScale, panOffset, orbitYaw, orbitPitch) {
+            .pointerInput(visibleParts, transformsByPartId, zoomScale, panOffset, orbitYaw, orbitPitch) {
                 detectTapGestures { tapOffset ->
                     val centerX = size.width / 2f + panOffset.x
                     val centerY = size.height / 2f + panOffset.y
@@ -381,7 +412,7 @@ private fun AssemblyInteractiveCanvas(
                     var tappedPartId: String? = null
                     var minDistance = Float.MAX_VALUE
 
-                    for (part in parts.filter { it.isVisible }) {
+                    for (part in visibleParts) {
                         val transform = transformsByPartId[part.id] ?: continue
                         val projected = project3DTo2D(transform.posX, transform.posY, transform.posZ, centerX, centerY)
                         val dist = (projected - tapOffset).getDistance()
@@ -472,7 +503,7 @@ private fun AssemblyInteractiveCanvas(
         drawLine(color = Color(0xFF3E7BFA).copy(alpha = 0.8f), start = originProjected, end = axisZ, strokeWidth = 2f)
 
         // 3. Renderizado de cada pieza amigurumi visible
-        for (part in parts.filter { it.isVisible }) {
+        for (part in visibleParts) {
             val isSelected = part.id == selectedPartId
             val transform = transformsByPartId[part.id] ?: continue
             val partOrigin = project3DTo2D(transform.posX, transform.posY, transform.posZ, centerX, centerY)
