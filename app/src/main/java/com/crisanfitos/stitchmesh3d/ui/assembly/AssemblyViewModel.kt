@@ -113,6 +113,27 @@ class AssemblyViewModel @Inject constructor() :
                 }
             }
 
+            is AssemblyIntent.SnapPartToSurface -> {
+                setState {
+                    val transform = transformsByPartId[intent.sourcePartId]
+                    if (transform != null && !transform.isLocked) {
+                        val euler = com.crisanfitos.stitchmesh3d.core.geometry.MeshRaycaster.calculateSeamAlignmentEulerAngles(
+                            floatArrayOf(intent.normalX, intent.normalY, intent.normalZ)
+                        )
+                        val updated = transform.copy(
+                            posX = intent.pointX,
+                            posY = intent.pointY,
+                            posZ = intent.pointZ,
+                            rotX = euler[0],
+                            rotY = euler[1],
+                            rotZ = euler[2]
+                        )
+                        copy(transformsByPartId = transformsByPartId + (intent.sourcePartId to updated))
+                    } else this
+                }
+                sendEffect(AssemblyEffect.ShowSnackbar("Pieza anclada sobre superficie"))
+            }
+
             is AssemblyIntent.ToggleMirror -> {
                 setState {
                     val transform = transformsByPartId[intent.partId]
