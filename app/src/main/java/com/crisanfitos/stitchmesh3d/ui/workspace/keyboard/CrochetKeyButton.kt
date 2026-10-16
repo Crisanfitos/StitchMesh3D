@@ -70,10 +70,10 @@ fun CrochetKeyButton(
     Box(
         modifier = modifier
             .testTag("key_token_${label}")
-            .defaultMinSize(minWidth = 36.dp, minHeight = 40.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
-            .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(6.dp))
+            .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(8.dp))
             .clickable(
                 enabled = enabled,
                 interactionSource = interactionSource,
@@ -82,7 +82,7 @@ fun CrochetKeyButton(
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onClick()
             }
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {
@@ -90,7 +90,7 @@ fun CrochetKeyButton(
                 imageVector = icon,
                 contentDescription = label,
                 tint = contentColor,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(18.dp)
             )
         } else {
             Text(

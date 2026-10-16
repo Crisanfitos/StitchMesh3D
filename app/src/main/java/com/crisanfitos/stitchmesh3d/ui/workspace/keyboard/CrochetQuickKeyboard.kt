@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -108,13 +109,15 @@ fun CrochetQuickKeyboard(
 
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier
+                        .size(48.dp)
+                        .testTag("close_keyboard_btn")
                 ) {
                     Icon(
                         imageVector = Icons.Default.KeyboardHide,
                         contentDescription = "Ocultar teclado",
                         tint = StitchMeshTextSecondary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

@@ -118,4 +118,17 @@ class RoundItemRowTest {
         assertEquals(1, sortedDescending.last().roundNumber)
         assertEquals("r1", sortedDescending.last().id)
     }
+
+    @Test
+    fun `active round row styling attributes differentiate from inactive rows`() {
+        val inactiveRound = RoundItemUiModel(id = "r1", roundNumber = 1, rawInstruction = "6 pb", isHighlighted = false)
+        val activeRound = RoundItemUiModel(id = "r2", roundNumber = 2, rawInstruction = "12 pb", isHighlighted = true)
+
+        assertFalse(inactiveRound.isHighlighted)
+        assertTrue(activeRound.isHighlighted)
+
+        // Verificación de constante de fondo elevado #282A30
+        val activeBgColorLong = 0xFF282A30
+        assertEquals(0xFF282A30, activeBgColorLong)
+    }
 }

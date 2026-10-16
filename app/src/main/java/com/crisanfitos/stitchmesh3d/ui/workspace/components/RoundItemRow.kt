@@ -177,14 +177,20 @@ fun RoundItemRow(
         StitchMeshSurfaceBorder
     }
 
+    val containerBackgroundColor = if (round.isHighlighted) {
+        Color(0xFF282A30)
+    } else {
+        StitchMeshSurfaceContainer
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .testTag("round_row_${round.id}")
             .clip(RoundedCornerShape(8.dp))
-            .background(StitchMeshSurfaceContainer)
+            .background(containerBackgroundColor)
             .border(
-                width = if (round.isHighlighted) 1.5.dp else 1.dp,
+                width = if (round.isHighlighted) 2.dp else 1.dp,
                 color = containerBorderColor,
                 shape = RoundedCornerShape(8.dp)
             )
@@ -196,10 +202,10 @@ fun RoundItemRow(
                 .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Rail visual lateral indicador de validez formal (4dp)
+            // Rail visual lateral indicador de validez formal (4dp normal, 6dp si está activa)
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(if (round.isHighlighted) 6.dp else 4.dp)
                     .fillMaxHeight()
                     .background(railColor)
             )
@@ -227,19 +233,26 @@ fun RoundItemRow(
                     )
                 }
 
-                // Chip selector de color de vuelta (TRD §2, RF-4.3)
+                // Chip selector de color de vuelta con touch target accesible (TRD §2, RF-4.3)
                 val swatchColor = round.colorHex?.let {
                     runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
                 } ?: StitchMeshTerracotta
 
                 Box(
                     modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(swatchColor)
-                        .border(1.dp, StitchMeshSurfaceBorder, CircleShape)
-                        .then(if (onColorClick != null) Modifier.clickable(onClick = onColorClick) else Modifier)
-                )
+                        .size(44.dp)
+                        .testTag("round_color_swatch_${round.id}")
+                        .then(if (onColorClick != null) Modifier.clickable(onClick = onColorClick) else Modifier),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(swatchColor)
+                            .border(1.dp, StitchMeshSurfaceBorder, CircleShape)
+                    )
+                }
 
                 // Editor de texto de fórmula con debounce y tipografía monoespaciada
                 Box(
@@ -299,17 +312,19 @@ fun RoundItemRow(
                     isValid = round.isValid
                 )
 
-                // Botón opcional de eliminación
+                // Botón opcional de eliminación con touch target accesible
                 if (onDeleteRound != null) {
                     IconButton(
                         onClick = onDeleteRound,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("delete_round_btn_${round.id}")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar vuelta ${round.roundNumber}",
                             tint = StitchMeshTextDisabled,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }

@@ -65,11 +65,18 @@ class LinterInlineErrorCardTest {
         val excessConsumed = 16
         val expectedBase = 12
         val excessDiff = excessConsumed - expectedBase
-        assertEquals(4, excessDiff)
+        val excessBadge = if (excessDiff > 0) "+$excessDiff pb de exceso" else "${kotlin.math.abs(excessDiff)} pb faltantes"
+        assertEquals("+4 pb de exceso", excessBadge)
 
-        // Faltantes
+        // Faltantes (evita doble negativo como '-2 pb faltantes')
         val shortConsumed = 10
         val shortDiff = shortConsumed - expectedBase
-        assertEquals(-2, shortDiff)
+        val shortBadge = if (shortDiff > 0) "+$shortDiff pb de exceso" else "${kotlin.math.abs(shortDiff)} pb faltantes"
+        assertEquals("2 pb faltantes", shortBadge)
+
+        // Desajuste en puntos declarados
+        val prodDiff = 15 - 18
+        val declaredBadge = if (prodDiff > 0) "+$prodDiff pt sobre declarados" else "${kotlin.math.abs(prodDiff)} pt bajo declarados"
+        assertEquals("3 pt bajo declarados", declaredBadge)
     }
 }
