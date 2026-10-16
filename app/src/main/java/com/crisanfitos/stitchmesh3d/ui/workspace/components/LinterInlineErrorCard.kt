@@ -74,11 +74,11 @@ fun LinterInlineErrorCard(
         val discrepancyBadgeText: String? = when {
             consumedStitches != null && expectedBaseStitches != null && consumedStitches != expectedBaseStitches -> {
                 val diff = consumedStitches - expectedBaseStitches
-                if (diff > 0) "+$diff pb de exceso" else "$diff pb faltantes"
+                if (diff > 0) "+$diff pb de exceso" else "${kotlin.math.abs(diff)} pb faltantes"
             }
             producedStitches != null && declaredStitches != null && producedStitches != declaredStitches -> {
                 val diff = producedStitches - declaredStitches
-                if (diff > 0) "+$diff pt declarados" else "$diff pt declarados"
+                if (diff > 0) "+$diff pt sobre declarados" else "${kotlin.math.abs(diff)} pt bajo declarados"
             }
             else -> null
         }

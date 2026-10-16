@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,11 +44,12 @@ fun QuickFixActionChip(
     Row(
         modifier = modifier
             .testTag("quick_fix_chip")
+            .defaultMinSize(minHeight = 44.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(8.dp))
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {

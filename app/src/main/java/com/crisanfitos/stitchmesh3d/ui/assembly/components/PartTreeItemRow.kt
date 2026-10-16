@@ -122,46 +122,53 @@ fun PartTreeItemRow(
         }
 
         // Botón expandir/colapsar si tiene hijos
+        // Botón expandir/colapsar si tiene hijos con touch target optimizado
         if (item.hasChildren && onToggleExpand != null) {
             IconButton(
                 onClick = { onToggleExpand(item.id) },
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(40.dp)
                     .testTag("expand_btn_${item.id}")
             ) {
                 Icon(
                     imageVector = if (item.isExpanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = if (item.isExpanded) "Colapsar ${item.name}" else "Expandir ${item.name}",
                     tint = StitchMeshTextSecondary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         } else {
             Spacer(modifier = Modifier.width(4.dp))
         }
 
-        // Swatch de color de hilado interactivo
+        // Swatch de color de hilado interactivo con contenedor táctil ergonómico
         Box(
             modifier = Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(partColor)
-                .border(width = 1.dp, color = StitchMeshSurfaceBorder, shape = CircleShape)
+                .size(40.dp)
                 .clickable { onColorClick(item.id) }
                 .testTag("color_swatch_${item.id}"),
             contentAlignment = Alignment.Center
         ) {
-            if (!item.isVisible) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                )
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(partColor)
+                    .border(width = 1.dp, color = StitchMeshSurfaceBorder, shape = CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!item.isVisible) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.5f))
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
 
         // Nombre de la pieza y badges técnicos
         Column(
@@ -203,33 +210,33 @@ fun PartTreeItemRow(
             )
         }
 
-        // Toggle de Visibilidad (Ojo)
+        // Toggle de Visibilidad (Ojo) con touch target ergonómico
         IconButton(
             onClick = { onToggleVisibility(item.id) },
             modifier = Modifier
-                .size(36.dp)
+                .size(44.dp)
                 .testTag("visibility_btn_${item.id}")
         ) {
             Icon(
                 imageVector = if (item.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                 contentDescription = if (item.isVisible) "Ocultar ${item.name}" else "Mostrar ${item.name}",
                 tint = if (item.isVisible) StitchMeshTextPrimary else StitchMeshTextDisabled,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
 
-        // Toggle de Bloqueo (Candado)
+        // Toggle de Bloqueo (Candado) con touch target ergonómico
         IconButton(
             onClick = { onToggleLock(item.id) },
             modifier = Modifier
-                .size(36.dp)
+                .size(44.dp)
                 .testTag("lock_btn_${item.id}")
         ) {
             Icon(
                 imageVector = if (item.isLocked) Icons.Default.Lock else Icons.Default.LockOpen,
                 contentDescription = if (item.isLocked) "Desbloquear ${item.name}" else "Bloquear ${item.name}",
                 tint = if (item.isLocked) StitchMeshYarnGold else StitchMeshTextSecondary,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
 
@@ -239,14 +246,14 @@ fun PartTreeItemRow(
                 IconButton(
                     onClick = { showMenu = true },
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(44.dp)
                         .testTag("more_btn_${item.id}")
                 ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "Opciones para ${item.name}",
                         tint = StitchMeshTextSecondary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
