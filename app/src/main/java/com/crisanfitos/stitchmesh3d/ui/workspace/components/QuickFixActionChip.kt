@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.crisanfitos.stitchmesh3d.core.engine.validator.CorrectionSuggestion
@@ -41,6 +42,7 @@ fun QuickFixActionChip(
 
     Row(
         modifier = modifier
+            .testTag("quick_fix_chip")
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(8.dp))

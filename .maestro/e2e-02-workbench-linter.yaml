@@ -1,0 +1,44 @@
+appId: com.crisanfitos.stitchmesh3d
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    text: "Zorro E2E"
+    optional: true
+- assertVisible:
+    id: "workspace_screen"
+- assertVisible: "CAD WORKBENCH"
+# 1. Verificar visibilidad del teclado contextual de crochet
+- assertVisible: "TECLADO RÁPIDO DE CROCHET"
+- assertVisible:
+    id: "key_token_pb"
+- assertVisible:
+    id: "key_token_aum"
+- assertVisible:
+    id: "key_token_dism"
+# 2. Añadir una nueva vuelta usando el botón dedicado
+- tapOn:
+    id: "add_round_btn"
+- assertVisible: "V4"
+# 3. Seleccionar la vuelta V4 y utilizar el teclado rápido para añadir tokens
+- tapOn: "V4"
+- tapOn:
+    id: "key_token_["
+- tapOn:
+    id: "key_token_2"
+- tapOn:
+    id: "key_token_pb"
+- tapOn:
+    id: "key_token_,"
+- tapOn:
+    id: "key_token_1"
+- tapOn:
+    id: "key_token_aum"
+- tapOn:
+    id: "key_token_]"
+- tapOn:
+    id: "key_token_*"
+- tapOn:
+    id: "key_token_6"
+# 4. Capturar screenshot de edición reactiva con teclado rápido
+- takeScreenshot: "e2e_02_workbench_linter_success"

@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +69,7 @@ fun CrochetKeyButton(
 
     Box(
         modifier = modifier
+            .testTag("key_token_${label}")
             .defaultMinSize(minWidth = 36.dp, minHeight = 40.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(backgroundColor)

@@ -58,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -278,7 +279,9 @@ fun AdaptiveWorkspaceScaffold(
     fun handleBackspace() = emitExternalEdit(RoundExternalEdit.Action.Backspace)
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("workspace_screen"),
         containerColor = StitchMeshNeutralDark,
         topBar = {
             if (!isFullscreenViewport) {
@@ -601,6 +604,7 @@ private fun RoundEditorPane(
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
                     .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
+                    .testTag("add_round_btn")
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,

@@ -4,10 +4,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.AddPartDialog
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.DeletePartConfirmDialog
+import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.ExportTechnicalDialog
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.RenamePartDialog
 
 /**
@@ -36,6 +40,7 @@ fun WorkspaceScreen(
     }
 
     val state by viewModel.state.collectAsState()
+    var showExportDialog by remember { mutableStateOf(false) }
 
     AdaptiveWorkspaceScaffold(
         projectTitle = state.projectTitle,
@@ -50,6 +55,7 @@ fun WorkspaceScreen(
         onBackClick = onBackToDashboard,
         onCalibrateTensionClick = onCalibrateTension,
         onAssemblyClick = onNavigateToAssembly,
+        onExportClick = { showExportDialog = true },
         onPartSelected = { viewModel.processIntent(WorkspaceIntent.SelectPart(it)) },
         onRoundSelected = { viewModel.processIntent(WorkspaceIntent.SelectRound(it)) },
         onRoundColorChanged = { id, hex -> viewModel.processIntent(WorkspaceIntent.ChangeRoundColor(id, hex)) },
@@ -93,6 +99,16 @@ fun WorkspaceScreen(
             onDismiss = { viewModel.processIntent(WorkspaceIntent.DismissPartDialogs) },
             onConfirm = {
                 viewModel.processIntent(WorkspaceIntent.ConfirmDeletePart(state.partActionTarget!!.id))
+            }
+        )
+    }
+
+    if (showExportDialog) {
+        ExportTechnicalDialog(
+            projectTitle = state.projectTitle,
+            onDismiss = { showExportDialog = false },
+            onExportConfirmed = { _, _ ->
+                showExportDialog = false
             }
         )
     }

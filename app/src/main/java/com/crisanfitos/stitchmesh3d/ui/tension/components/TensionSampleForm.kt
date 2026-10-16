@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -153,6 +154,7 @@ fun TensionSampleForm(
                     title = "PUNTOS EN 10 CM",
                     unitLabel = "puntos",
                     value = stitchesCount,
+                    tagPrefix = "stitches",
                     onIncrement = onIncrementStitches,
                     onDecrement = onDecrementStitches,
                     modifier = Modifier.weight(1f)
@@ -163,6 +165,7 @@ fun TensionSampleForm(
                     title = "VUELTAS EN 10 CM",
                     unitLabel = "vueltas",
                     value = roundsCount,
+                    tagPrefix = "rounds",
                     onIncrement = onIncrementRounds,
                     onDecrement = onDecrementRounds,
                     modifier = Modifier.weight(1f)
@@ -180,6 +183,7 @@ private fun StepperModule(
     title: String,
     unitLabel: String,
     value: Int,
+    tagPrefix: String,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier
@@ -217,7 +221,8 @@ private fun StepperModule(
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(StitchMeshNeutralDark)
-                        .border(1.dp, StitchMeshSurfaceBorder, CircleShape),
+                        .border(1.dp, StitchMeshSurfaceBorder, CircleShape)
+                        .testTag("decrement_${tagPrefix}"),
                     colors = IconButtonDefaults.iconButtonColors(
                         contentColor = StitchMeshTextPrimary
                     )
@@ -238,7 +243,8 @@ private fun StepperModule(
                         color = StitchMeshTextPrimary,
                         fontSize = 26.sp,
                         fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.testTag("value_${tagPrefix}")
                     )
                     Text(
                         text = unitLabel,
@@ -255,7 +261,8 @@ private fun StepperModule(
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(StitchMeshNeutralDark)
-                        .border(1.dp, StitchMeshSurfaceBorder, CircleShape),
+                        .border(1.dp, StitchMeshSurfaceBorder, CircleShape)
+                        .testTag("increment_${tagPrefix}"),
                     colors = IconButtonDefaults.iconButtonColors(
                         contentColor = StitchMeshTerracotta
                     )

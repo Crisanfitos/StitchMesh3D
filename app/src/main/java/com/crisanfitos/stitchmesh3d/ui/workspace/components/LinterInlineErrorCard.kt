@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Icon
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -85,6 +86,7 @@ fun LinterInlineErrorCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .testTag("linter_error_card")
                 .clip(RoundedCornerShape(8.dp))
                 .background(StitchMeshSurfaceHigh)
                 .border(

@@ -40,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
@@ -76,13 +79,14 @@ fun NewProjectModalSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = StitchMeshSurfaceContainer,
-        modifier = modifier
+        modifier = modifier.testTag("new_project_modal")
     ) {
         NewProjectFormContent(
             onDismiss = onDismiss,
             onCreateProject = onCreateProject,
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics { testTagsAsResourceId = true }
                 .padding(horizontal = 24.dp, vertical = 8.dp)
         )
     }
@@ -110,9 +114,8 @@ fun NewProjectFormContent(
     val isTitleValid = title.trim().isNotEmpty()
 
     Column(
-        modifier = modifier
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Cabecera del diálogo modal
         Row(
@@ -135,8 +138,14 @@ fun NewProjectFormContent(
             }
         }
 
-        // Campo de entrada: Título del proyecto
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Campo de entrada: Título del proyecto
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = "Nombre del Proyecto",
                 style = MaterialTheme.typography.labelMedium,
@@ -148,7 +157,9 @@ fun NewProjectFormContent(
                     title = it
                     titleTouched = true
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("new_project_name_input"),
                 placeholder = {
                     Text(
                         text = "Ej. Oso Amigurumi, Gorro Acanalado...",
@@ -274,8 +285,7 @@ fun NewProjectFormContent(
             selectedColor = selectedColor,
             onColorSelected = { selectedColor = it }
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
+        }
 
         // Botones de acción
         Row(
@@ -288,7 +298,8 @@ fun NewProjectFormContent(
                 onClick = onDismiss,
                 modifier = Modifier
                     .weight(1f)
-                    .height(48.dp),
+                    .height(48.dp)
+                    .testTag("create_project_cancel_btn"),
                 shape = RoundedCornerShape(12.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, StitchMeshSurfaceBorder)
             ) {
@@ -314,7 +325,8 @@ fun NewProjectFormContent(
                 enabled = isTitleValid,
                 modifier = Modifier
                     .weight(1.5f)
-                    .height(48.dp),
+                    .height(48.dp)
+                    .testTag("create_project_confirm_btn"),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = StitchMeshTerracotta,

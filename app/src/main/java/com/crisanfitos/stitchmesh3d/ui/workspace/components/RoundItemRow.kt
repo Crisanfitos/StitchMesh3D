@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -179,6 +180,7 @@ fun RoundItemRow(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .testTag("round_row_${round.id}")
             .clip(RoundedCornerShape(8.dp))
             .background(StitchMeshSurfaceContainer)
             .border(
@@ -280,6 +282,7 @@ fun RoundItemRow(
                         cursorBrush = SolidColor(StitchMeshTerracotta),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .testTag("round_input_${round.id}")
                             .focusRequester(focusRequester)
                             .onFocusChanged { focusState ->
                                 if (focusState.isFocused) {
