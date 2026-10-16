@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -83,6 +84,7 @@ fun CrochetViewportScreen(
         modifier = modifier
             .fillMaxSize()
             .background(StitchMeshNeutralDark)
+            .testTag("crochet_viewport_screen")
     ) {
         if (state.meshGeometry != null) {
             // Renderizado nativo 3D con Google Filament y shader Wool PBR
@@ -90,7 +92,9 @@ fun CrochetViewportScreen(
                 meshGeometry = state.meshGeometry,
                 cameraPreset = state.selectedCameraPreset,
                 isWireframe = state.isWireframe,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("crochet_viewport_3d")
             )
         } else {
             // Lienzo CAD 2D preliminar si no hay malla triangulada

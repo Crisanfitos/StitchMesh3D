@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -102,7 +103,10 @@ fun WorkspaceTopBar(
             }
         },
         navigationIcon = {
-            IconButton(onClick = onBackClick) {
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier.testTag("topbar_back_btn")
+            ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Volver a la Biblioteca",
@@ -116,7 +120,10 @@ fun WorkspaceTopBar(
             Spacer(modifier = Modifier.width(6.dp))
 
             if (onCalibrateTensionClick != null) {
-                IconButton(onClick = onCalibrateTensionClick) {
+                IconButton(
+                    onClick = onCalibrateTensionClick,
+                    modifier = Modifier.testTag("topbar_tension_btn")
+                ) {
                     Icon(
                         imageVector = Icons.Default.Straighten,
                         contentDescription = "Muestra de tensión",
@@ -127,7 +134,10 @@ fun WorkspaceTopBar(
             }
 
             if (onAssemblyClick != null) {
-                IconButton(onClick = onAssemblyClick) {
+                IconButton(
+                    onClick = onAssemblyClick,
+                    modifier = Modifier.testTag("topbar_assembly_btn")
+                ) {
                     Icon(
                         imageVector = Icons.Default.AccountTree,
                         contentDescription = "Ensamblador 3D multipieza",
@@ -138,7 +148,10 @@ fun WorkspaceTopBar(
             }
 
             if (onExportClick != null) {
-                IconButton(onClick = onExportClick) {
+                IconButton(
+                    onClick = onExportClick,
+                    modifier = Modifier.testTag("topbar_export_btn")
+                ) {
                     Icon(
                         imageVector = Icons.Default.FileDownload,
                         contentDescription = "Exportar modelo y ficha técnica",

@@ -1,0 +1,33 @@
+appId: com.crisanfitos.stitchmesh3d
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    text: "Zorro E2E"
+    optional: true
+- assertVisible:
+    id: "workspace_screen"
+- assertVisible: "CAD WORKBENCH"
+# 1. Abrir diálogo de exportación técnica desde la barra superior
+- tapOn:
+    id: "topbar_export_btn"
+- assertVisible:
+    id: "export_dialog"
+- assertVisible: "Exportación Técnica"
+- assertVisible:
+    id: "export_option_pdf"
+- assertVisible:
+    id: "export_option_3d"
+# 2. Desactivar y reactivar opción PDF para comprobar reactividad de selección
+- tapOn:
+    id: "export_option_pdf"
+- tapOn:
+    id: "export_option_pdf"
+# 3. Confirmar la exportación técnica
+- tapOn:
+    id: "export_confirm_btn"
+# 4. Verificar cierre del diálogo y permanencia en el Workbench
+- assertVisible:
+    id: "workspace_screen"
+- assertVisible: "CAD WORKBENCH"
+- takeScreenshot: "e2e_05_export_workflow_success"

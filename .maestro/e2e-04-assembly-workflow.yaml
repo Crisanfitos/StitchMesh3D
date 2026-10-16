@@ -1,0 +1,35 @@
+appId: com.crisanfitos.stitchmesh3d
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    text: "Zorro E2E"
+    optional: true
+- assertVisible:
+    id: "workspace_screen"
+- assertVisible: "CAD WORKBENCH"
+# 1. Navegar al Ensamblador CAD 3D desde la barra superior
+- tapOn:
+    id: "topbar_assembly_btn"
+- assertVisible:
+    id: "assembly_top_bar"
+- assertVisible: "Ensamblador 3D"
+- assertVisible: "CAD MULTI-PIEZA"
+- assertVisible:
+    id: "scene_graph_tree"
+- assertVisible:
+    id: "assembly_viewport_3d"
+# 2. Interactuar con los modos del Gizmo de transformación y visor 3D
+- tapOn:
+    id: "gizmo_translate_btn"
+- tapOn:
+    id: "gizmo_snap_btn"
+- tapOn:
+    id: "toggle_wireframe_btn"
+# 3. Regresar al Workbench mediante el botón de retorno
+- tapOn:
+    id: "assembly_back_button"
+- assertVisible:
+    id: "workspace_screen"
+- assertVisible: "CAD WORKBENCH"
+- takeScreenshot: "e2e_04_assembly_workflow_success"

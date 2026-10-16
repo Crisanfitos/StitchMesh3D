@@ -1,0 +1,21 @@
+appId: com.crisanfitos.stitchmesh3d
+---
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "dashboard_screen"
+- assertVisible: "StitchMesh 3D"
+- tapOn:
+    id: "new_project_fab"
+- assertVisible: "Nuevo Proyecto de Crochet"
+- tapOn:
+    id: "new_project_name_input"
+- inputText: "Zorro E2E"
+- tapOn:
+    id: "create_project_confirm_btn"
+- assertVisible:
+    id: "workspace_screen"
+- assertVisible: "CAD WORKBENCH"
+- assertVisible:
+    id: "crochet_viewport_screen"
+- takeScreenshot: "e2e_01_project_lifecycle_success"

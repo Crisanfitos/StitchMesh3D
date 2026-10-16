@@ -1,0 +1,29 @@
+appId: com.crisanfitos.stitchmesh3d
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    text: "Zorro E2E"
+    optional: true
+- assertVisible:
+    id: "workspace_screen"
+- assertVisible: "CAD WORKBENCH"
+# 1. Navegar al Calibrador de Tensión desde la barra superior
+- tapOn:
+    id: "topbar_tension_btn"
+- assertVisible:
+    id: "tension_screen"
+- assertVisible: "Calibrador de Tensión CAD"
+- assertVisible: "ESTÁNDAR CYC DE REFERENCIA"
+# 2. Modificar conteos con los botones de incremento
+- tapOn:
+    id: "increment_stitches"
+- tapOn:
+    id: "increment_rounds"
+# 3. Aplicar calibración de tensión y verificar retorno al Workspace
+- tapOn:
+    id: "apply_tension_btn"
+- assertVisible:
+    id: "workspace_screen"
+- assertVisible: "CAD WORKBENCH"
+- takeScreenshot: "e2e_03_tension_calibration_success"
