@@ -18,6 +18,7 @@ import com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshNeutralDark
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.google.android.filament.EntityManager
+import com.google.android.filament.IndirectLight
 import com.google.android.filament.LightManager
 import com.google.android.filament.Skybox
 import com.google.android.filament.utils.GestureDetector
@@ -42,15 +43,17 @@ fun CrochetViewport3D(
     meshGeometry: MeshGeometry?,
     modifier: Modifier = Modifier,
     yarnColor: Color = StitchMeshTerracotta,
-    roughness: Float = 0.9f,
+    roughness: Float = StudioLightingConfig.DEFAULT.defaultRoughness,
     cameraPreset: CameraPreset = CameraPreset.ISOMETRIC,
-    isWireframe: Boolean = false
+    isWireframe: Boolean = false,
+    lightingConfig: StudioLightingConfig = StudioLightingConfig.DEFAULT
 ) {
     val modelViewerRef = remember { arrayOfNulls<ModelViewer>(1) }
     val manipulatorRef = remember { arrayOfNulls<Manipulator>(1) }
     val surfaceViewRef = remember { arrayOfNulls<SurfaceView>(1) }
     val choreographerCallbackRef = remember { arrayOfNulls<Choreographer.FrameCallback>(1) }
-    val lightEntitiesRef = remember { arrayOf(IntArray(3)) }
+    val lightEntitiesRef = remember { arrayOf(IntArray(4)) }
+    val indirectLightRef = remember { arrayOfNulls<IndirectLight>(1) }
     val isReleasedRef = remember { booleanArrayOf(false) }
 
     // Generar binario GLB directo si hay geometría disponible
@@ -133,6 +136,13 @@ fun CrochetViewport3D(
                         }
                     }
                     try {
+                        viewer.scene.indirectLight = null
+                        indirectLightRef[0]?.let { ibl ->
+                            viewer.engine.destroyIndirectLight(ibl)
+                        }
+                    } catch (_: Throwable) {}
+                    indirectLightRef[0] = null
+                    try {
                         viewer.asset?.let { asset ->
                             viewer.scene.removeEntities(asset.entities)
                             viewer.scene.removeEntities(asset.lightEntities)
@@ -183,41 +193,35 @@ fun CrochetViewport3D(
                             .build(viewer.engine)
                         viewer.scene.skybox = skybox
 
-                        // Configurar iluminación PBR para resaltar el relieve y trama del tejido de crochet
+                        // Configurar iluminación PBR de estudio balanceada y luz ambiental indirecta (SM-073)
+                        // 1. IndirectLight (Spherical Harmonics 3 bandas) para iluminar los surcos del tejido sin sombras negras
+                        val indirectLight = IndirectLight.Builder()
+                            .irradiance(
+                                lightingConfig.sphericalHarmonicsBands,
+                                lightingConfig.sphericalHarmonicsIrradiance
+                            )
+                            .intensity(lightingConfig.indirectLightIntensityLux)
+                            .build(viewer.engine)
+                        viewer.scene.indirectLight = indirectLight
+                        indirectLightRef[0] = indirectLight
+
+                        // 2. Rig envolvente de 4 luces direccionales de estudio (Sun/Key, Fill, Rim/Back, Bounce)
                         val lights = lightEntitiesRef[0]
-
-                        // 1. Luz direccional principal (Sol superior en ángulo)
-                        val sunLight = EntityManager.get().create()
-                        LightManager.Builder(LightManager.Type.DIRECTIONAL)
-                            .color(1.0f, 0.98f, 0.95f)
-                            .intensity(110_000.0f)
-                            .direction(0.4f, -1.0f, -0.6f)
-                            .castShadows(true)
-                            .build(viewer.engine, sunLight)
-                        viewer.scene.addEntity(sunLight)
-                        lights[0] = sunLight
-
-                        // 2. Luz de relleno difusa para suavizar caras opuestas
-                        val fillLight = EntityManager.get().create()
-                        LightManager.Builder(LightManager.Type.DIRECTIONAL)
-                            .color(0.85f, 0.92f, 1.0f)
-                            .intensity(45_000.0f)
-                            .direction(-0.6f, -0.5f, 0.4f)
-                            .castShadows(false)
-                            .build(viewer.engine, fillLight)
-                        viewer.scene.addEntity(fillLight)
-                        lights[1] = fillLight
-
-                        // 3. Luz de rebote inferior suave
-                        val bounceLight = EntityManager.get().create()
-                        LightManager.Builder(LightManager.Type.DIRECTIONAL)
-                            .color(1.0f, 0.95f, 0.90f)
-                            .intensity(30_000.0f)
-                            .direction(0.0f, 1.0f, -0.3f)
-                            .castShadows(false)
-                            .build(viewer.engine, bounceLight)
-                        viewer.scene.addEntity(bounceLight)
-                        lights[2] = bounceLight
+                        val directionalSpecs = lightingConfig.directionalLights
+                        for (i in directionalSpecs.indices) {
+                            val spec = directionalSpecs[i]
+                            val entity = EntityManager.get().create()
+                            LightManager.Builder(LightManager.Type.DIRECTIONAL)
+                                .color(spec.colorR, spec.colorG, spec.colorB)
+                                .intensity(spec.intensityLux)
+                                .direction(spec.dirX, spec.dirY, spec.dirZ)
+                                .castShadows(spec.castShadows)
+                                .build(viewer.engine, entity)
+                            viewer.scene.addEntity(entity)
+                            if (i < lights.size) {
+                                lights[i] = entity
+                            }
+                        }
 
                         val frameCallback = object : Choreographer.FrameCallback {
                             override fun doFrame(frameTimeNanos: Long) {
