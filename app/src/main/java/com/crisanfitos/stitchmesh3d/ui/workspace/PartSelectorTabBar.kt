@@ -127,13 +127,13 @@ fun PartSelectorTabBar(
                     if (isSelected && (onRenamePart != null || onDuplicatePart != null || onDeletePart != null)) {
                         IconButton(
                             onClick = { showMenu = true },
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
                                 contentDescription = "Opciones de la parte ${part.name}",
                                 tint = textColor,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -201,7 +201,7 @@ fun PartSelectorTabBar(
             IconButton(
                 onClick = onAddPart,
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(40.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(StitchMeshSurfaceHigh)
                     .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
@@ -210,7 +210,7 @@ fun PartSelectorTabBar(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Añadir nueva parte",
                     tint = StitchMeshTextSecondary,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
