@@ -24,7 +24,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSageGreen
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceBorder
-import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceLowest
+import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshNeutralDark
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
@@ -77,7 +77,7 @@ fun TelemetryLogConsole(
             .fillMaxWidth()
             .height(148.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(StitchMeshSurfaceLowest)
+            .background(StitchMeshNeutralDark)
             .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(10.dp))
             .padding(12.dp)
             .testTag("telemetry_log_console")
@@ -95,7 +95,7 @@ fun TelemetryLogConsole(
                 }
                 Text(
                     text = entry.formattedLine,
-                    style = CrochetTypography.codeInstruction,
+                    style = CrochetTypography.matrixValue,
                     color = if (index == logs.lastIndex && entry.level == TelemetryLogLevel.ACTIVE) {
                         StitchMeshTextPrimary
                     } else {
