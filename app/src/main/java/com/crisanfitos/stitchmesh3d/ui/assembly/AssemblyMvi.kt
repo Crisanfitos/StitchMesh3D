@@ -78,6 +78,7 @@ sealed interface AssemblyIntent : ViewIntent {
     ) : AssemblyIntent
     data class ToggleMirror(val partId: String) : AssemblyIntent
     data class ResetOrigin(val partId: String) : AssemblyIntent
+    data object AutoAlignShelfLayout : AssemblyIntent
     data class SetGizmoMode(val mode: GizmoMode) : AssemblyIntent
     data object ToggleWireframe : AssemblyIntent
     data object ToggleCoordinateGrid : AssemblyIntent

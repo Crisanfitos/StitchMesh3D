@@ -180,6 +180,19 @@ class AssemblyViewModel @Inject constructor() :
                 publishAssemblySessionIfLinked()
             }
 
+            is AssemblyIntent.AutoAlignShelfLayout -> {
+                setState {
+                    val aligned = AssemblyLayoutPlanner.computeShelfLayout(
+                        parts = parts,
+                        existingTransforms = transformsByPartId,
+                        forceRealignAll = true
+                    )
+                    copy(transformsByPartId = aligned)
+                }
+                publishAssemblySessionIfLinked()
+                sendEffect(AssemblyEffect.ShowSnackbar("Piezas alineadas en cuadrícula horizontal"))
+            }
+
             is AssemblyIntent.SetGizmoMode -> {
                 setState { copy(activeGizmoMode = intent.mode) }
             }
@@ -277,12 +290,10 @@ class AssemblyViewModel @Inject constructor() :
                     stitchCount = 6,
                     topologyType = intent.topologyType
                 )
-                val newTransform = PartTransformState(
-                    partId = newId,
-                    partName = intent.name,
-                    posX = 0f,
-                    posY = 0f,
-                    posZ = 0f
+                val newTransform = AssemblyLayoutPlanner.computeNextPartTransform(
+                    newPart = newPart,
+                    existingParts = state.value.parts,
+                    existingTransforms = state.value.transformsByPartId
                 )
 
                 setState {
@@ -372,28 +383,11 @@ class AssemblyViewModel @Inject constructor() :
 
     private fun applySnapshotToState(projectId: String, snapshot: ProjectAssemblySnapshot) {
         val sceneItems = snapshot.toSceneGraphItems()
-        val resolvedTransforms = LinkedHashMap<String, PartTransformState>()
-        val n = sceneItems.size.coerceAtLeast(1)
-        sceneItems.forEachIndexed { index, item ->
-            val saved = snapshot.transformsByPartId[item.id]
-            if (saved != null) {
-                resolvedTransforms[item.id] = saved.copy(
-                    partName = item.name,
-                    isLocked = item.isLocked
-                )
-            } else {
-                // Posición inicial lado a lado por defecto sobre la cuadrícula X si no hay transformación previa
-                val defaultX = (index - (n - 1) / 2.0f) * 45.0f
-                resolvedTransforms[item.id] = PartTransformState(
-                    partId = item.id,
-                    partName = item.name,
-                    posX = defaultX,
-                    posY = 0f,
-                    posZ = 0f,
-                    isLocked = item.isLocked
-                )
-            }
-        }
+        val resolvedTransforms = AssemblyLayoutPlanner.computeShelfLayout(
+            parts = sceneItems,
+            existingTransforms = snapshot.transformsByPartId,
+            forceRealignAll = false
+        )
 
         val currentSelected = state.value.selectedPartId
         val nextSelected = if (sceneItems.any { it.id == currentSelected }) {

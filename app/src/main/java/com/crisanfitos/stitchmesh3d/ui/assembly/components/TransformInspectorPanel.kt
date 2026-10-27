@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -52,7 +53,8 @@ fun TransformInspectorPanel(
     onRotationChange: (rotX: Float, rotY: Float, rotZ: Float) -> Unit,
     onMirrorToggled: () -> Unit,
     onResetOrigin: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAlignAllShelf: (() -> Unit)? = null
 ) {
     Column(
         modifier = modifier
@@ -290,6 +292,29 @@ fun TransformInspectorPanel(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "Reset (0,0,0)",
+                                style = Typography.labelMedium,
+                                color = StitchMeshTextPrimary
+                            )
+                        }
+                    }
+
+                    if (onAlignAllShelf != null) {
+                        OutlinedButton(
+                            onClick = onAlignAllShelf,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("align_shelf_layout_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ViewColumn,
+                                contentDescription = null,
+                                tint = StitchMeshTerracotta,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Alinear piezas en cuadrícula",
                                 style = Typography.labelMedium,
                                 color = StitchMeshTextPrimary
                             )
