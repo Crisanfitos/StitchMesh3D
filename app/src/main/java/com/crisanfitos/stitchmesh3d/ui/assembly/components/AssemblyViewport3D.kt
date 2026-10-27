@@ -618,6 +618,16 @@ private fun AssemblyInteractiveCanvas(
                     center = partOrigin,
                     style = Fill
                 )
+                // Sombreado de estudio suave (SM-073): brillo difuso superior-izquierdo sin sombras oscuras
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.18f),
+                    radius = partRadius * 0.65f,
+                    center = Offset(
+                        x = partOrigin.x - partRadius * 0.22f,
+                        y = partOrigin.y - partRadius * 0.22f
+                    ),
+                    style = Fill
+                )
                 drawCircle(
                     color = StitchMeshSurfaceBorder,
                     radius = partRadius,
