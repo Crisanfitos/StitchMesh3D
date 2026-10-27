@@ -28,7 +28,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceBorder
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceContainer
-import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceLowest
+import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshNeutralDark
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
@@ -108,7 +108,7 @@ fun ExportProgressDialog(
                     }
                     Text(
                         text = "${state.progressPercent}%",
-                        style = CrochetTypography.hudDimensionValue,
+                        style = CrochetTypography.tokenBadge,
                         color = StitchMeshTerracotta,
                         modifier = Modifier.testTag("export_progress_percent_text")
                     )
@@ -122,7 +122,7 @@ fun ExportProgressDialog(
                         .clip(RoundedCornerShape(4.dp))
                         .testTag("export_progress_bar"),
                     color = StitchMeshTerracotta,
-                    trackColor = StitchMeshSurfaceLowest
+                    trackColor = StitchMeshNeutralDark
                 )
 
                 TelemetryLogConsole(logs = state.logs)
