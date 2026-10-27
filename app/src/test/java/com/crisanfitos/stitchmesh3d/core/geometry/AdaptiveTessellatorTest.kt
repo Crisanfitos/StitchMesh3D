@@ -249,4 +249,34 @@ class AdaptiveTessellatorTest {
             }
         }
     }
+
+    @Test
+    fun `tessellate assigns stitch-specific UV atlas quadrants for mixed rounds with pb, aum, dism and pa`() {
+        val mixedStitches = listOf(
+            StitchType.SingleCrochet,
+            StitchType.Increase,
+            StitchType.Decrease,
+            StitchType.DoubleCrochet
+        )
+        val ring1 = RingProfileGenerator.generateRing(
+            roundIndex = 1,
+            stitches = mixedStitches,
+            gaugeStandard = standard
+        )
+
+        val mesh = AdaptiveTessellator.tessellate(listOf(ring1), includePolarCap = false)
+
+        assertEquals(4, mesh.vertexCount)
+        assertEquals(8, mesh.vertexUvs.size)
+
+        for (i in mixedStitches.indices) {
+            val u = mesh.vertexUvs[i * 2]
+            val v = mesh.vertexUvs[i * 2 + 1]
+            val expectedQuadrant = CrochetTextureGenerator.quadrantForStitch(mixedStitches[i])
+            assertTrue(
+                "El vértice $i (${mixedStitches[i].technicalName}) con UV ($u, $v) debe mapear al cuadrante $expectedQuadrant",
+                expectedQuadrant.containsUv(u, v)
+            )
+        }
+    }
 }

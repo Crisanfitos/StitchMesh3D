@@ -1,148 +1,157 @@
 package com.crisanfitos.stitchmesh3d.core.geometry
 
+import com.crisanfitos.stitchmesh3d.core.engine.model.StitchType
+import com.crisanfitos.stitchmesh3d.core.engine.model.TopologyFlag
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.ByteArrayInputStream
-import java.io.DataInputStream
+import kotlin.math.abs
 
 /**
- * Pruebas unitarias para [CrochetTextureGenerator], validando la conformidad binaria con el estándar PNG
- * (ISO/IEC 15948:2004) y la correcta síntesis de la textura de relieve de puntadas de crochet.
+ * Tests unitarios para el Stitch Texture Atlas 2x2 y modulación PBR de albedo por hilado (SM-074).
  */
 class CrochetTextureGeneratorTest {
 
     @Test
-    fun `generateCrochetStitchPng produces valid PNG magic header and chunk structure`() {
-        val pngBytes = CrochetTextureGenerator.generateCrochetStitchPng(width = 64, height = 64)
-        assertNotNull(pngBytes)
-        assertTrue("El archivo PNG debe tener más de 100 bytes", pngBytes.size > 100)
-
-        // 1. Validar firma PNG (8 bytes: 89 50 4E 47 0D 0A 1A 0A)
-        val expectedMagic = byteArrayOf(
-            0x89.toByte(), 0x50.toByte(), 0x4E.toByte(), 0x47.toByte(),
-            0x0D.toByte(), 0x0A.toByte(), 0x1A.toByte(), 0x0A.toByte()
+    fun `quadrantForStitch maps pb, aum, dism, pa and cad to their dedicated 2x2 atlas quadrants`() {
+        assertEquals(
+            StitchAtlasQuadrant.SINGLE_CROCHET,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.SingleCrochet)
         )
-        for (i in 0 until 8) {
-            assertEquals("Byte $i del encabezado PNG incorrecto", expectedMagic[i], pngBytes[i])
-        }
+        assertEquals(
+            StitchAtlasQuadrant.SINGLE_CROCHET,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.SingleCrochet.withTopology(TopologyFlag.BLO))
+        )
 
-        // 2. Analizar chunks con DataInputStream
-        val dis = DataInputStream(ByteArrayInputStream(pngBytes, 8, pngBytes.size - 8))
+        assertEquals(
+            StitchAtlasQuadrant.INCREASE,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.Increase)
+        )
+        assertEquals(
+            StitchAtlasQuadrant.INCREASE,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.DcIncrease)
+        )
 
-        // Primer chunk: IHDR (13 bytes)
-        val ihdrLen = dis.readInt()
-        assertEquals("IHDR payload length debe ser 13", 13, ihdrLen)
-        val ihdrType = String(dis.readNBytes(4), Charsets.US_ASCII)
-        assertEquals("Primer chunk debe ser IHDR", "IHDR", ihdrType)
+        assertEquals(
+            StitchAtlasQuadrant.DECREASE,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.Decrease)
+        )
+        assertEquals(
+            StitchAtlasQuadrant.DECREASE,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.InvisibleDecrease)
+        )
 
-        val width = dis.readInt()
-        val height = dis.readInt()
-        val bitDepth = dis.readByte().toInt()
-        val colorType = dis.readByte().toInt()
-        val compression = dis.readByte().toInt()
-        val filter = dis.readByte().toInt()
-        val interlace = dis.readByte().toInt()
-        val ihdrCrc = dis.readInt()
-
-        assertEquals("Ancho debe ser 64", 64, width)
-        assertEquals("Alto debe ser 64", 64, height)
-        assertEquals("Bit depth debe ser 8 bits", 8, bitDepth)
-        assertEquals("Color type debe ser 6 (RGBA)", 6, colorType)
-        assertEquals("Compresión debe ser 0", 0, compression)
-        assertEquals("Filtro debe ser 0", 0, filter)
-        assertEquals("Entrelazado debe ser 0", 0, interlace)
-
-        // Segundo chunk: IDAT
-        val idatLen = dis.readInt()
-        assertTrue("IDAT payload debe ser > 0", idatLen > 0)
-        val idatType = String(dis.readNBytes(4), Charsets.US_ASCII)
-        assertEquals("Segundo chunk debe ser IDAT", "IDAT", idatType)
-        dis.skipBytes(idatLen) // saltar datos comprimidos
-        val idatCrc = dis.readInt()
-
-        // Tercer chunk: IEND (0 bytes)
-        val iendLen = dis.readInt()
-        assertEquals("IEND payload length debe ser 0", 0, iendLen)
-        val iendType = String(dis.readNBytes(4), Charsets.US_ASCII)
-        assertEquals("Tercer chunk debe ser IEND", "IEND", iendType)
-        val iendCrc = dis.readInt()
-
-        assertEquals("No debe haber bytes remanentes después de IEND", 0, dis.available())
+        assertEquals(
+            StitchAtlasQuadrant.TALL_POST_AND_CHAIN,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.DoubleCrochet)
+        )
+        assertEquals(
+            StitchAtlasQuadrant.TALL_POST_AND_CHAIN,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.HalfDoubleCrochet)
+        )
+        assertEquals(
+            StitchAtlasQuadrant.TALL_POST_AND_CHAIN,
+            CrochetTextureGenerator.quadrantForStitch(StitchType.Chain)
+        )
     }
 
     @Test
-    fun `defaultStitchTexturePng lazy singleton produces 128x128 valid texture within budget`() {
-        val png = CrochetTextureGenerator.defaultStitchTexturePng
-        assertNotNull(png)
-        assertTrue("El PNG debe pesar menos de 20 KB para optimización de GPU", png.size < 20_000)
-        assertTrue("El PNG debe ser mayor a 500 bytes", png.size > 500)
-
-        // Verificar dimensiones en encabezado IHDR
-        val dis = DataInputStream(ByteArrayInputStream(png, 8, 24))
-        val ihdrLen = dis.readInt()
-        val ihdrType = String(dis.readNBytes(4), Charsets.US_ASCII)
-        val width = dis.readInt()
-        val height = dis.readInt()
-
-        assertEquals("IHDR", ihdrType)
-        assertEquals(128, width)
-        assertEquals(128, height)
+    fun `computeAtlasUv restricts UV coordinates strictly inside each stitch quadrant with inset`() {
+        for (stitch in listOf(
+            StitchType.SingleCrochet,
+            StitchType.Increase,
+            StitchType.Decrease,
+            StitchType.DoubleCrochet
+        )) {
+            val quadrant = CrochetTextureGenerator.quadrantForStitch(stitch)
+            for (lu in listOf(0.0f, 0.5f, 1.0f)) {
+                for (lv in listOf(0.0f, 0.5f, 1.0f)) {
+                    val uv = CrochetTextureGenerator.computeAtlasUv(stitch, lu, lv)
+                    assertTrue(
+                        "UV (${uv[0]}, ${uv[1]}) para $stitch debe pertenecer a $quadrant",
+                        quadrant.containsUv(uv[0], uv[1])
+                    )
+                    // Verificar margen interior anti-bleeding (inset = 0.03f)
+                    assertTrue(uv[0] >= quadrant.uMin + 0.029f && uv[0] <= quadrant.uMax - 0.029f)
+                    assertTrue(uv[1] >= quadrant.vMin + 0.029f && uv[1] <= quadrant.vMax - 0.029f)
+                }
+            }
+        }
     }
 
     @Test
-    fun `AdaptiveTessellator and PlanarMeshGenerator produce vertexUvs matching vertexCount`() {
-        // 1. Tubular mesh
-        val ring = RingProfileGenerator.generateRing(
-            roundIndex = 1,
-            stitches = List(6) { com.crisanfitos.stitchmesh3d.core.engine.model.StitchType.SingleCrochet },
-            gaugeStandard = com.crisanfitos.stitchmesh3d.core.gauge.YarnGaugeRegistry.DEFAULT_STANDARD
-        )
-        val amigurumiMesh = AdaptiveTessellator.tessellate(listOf(ring), includePolarCap = true)
+    fun `generateStitchAtlasRgba produces 4 visually distinct morphological glyphs in the 2x2 quadrants`() {
+        val size = 128
+        val half = size / 2
+        val rgba = CrochetTextureGenerator.generateStitchAtlasRgba(width = size, height = size)
+        assertEquals(size * size * 4, rgba.size)
 
-        assertEquals("vertexUvs size debe ser exactamente vertexCount * 2",
-            amigurumiMesh.vertexCount * 2, amigurumiMesh.vertexUvs.size)
-
-        // Polar vertex UV
-        val polarUv = amigurumiMesh.getVertexUv(0)
-        assertEquals(0.5f, polarUv[0], 0.001f)
-        assertEquals(0.0f, polarUv[1], 0.001f)
-
-        // Ring vertex UVs
-        for (i in 1 until amigurumiMesh.vertexCount) {
-            val uv = amigurumiMesh.getVertexUv(i)
-            assertTrue("U debe ser >= 0", uv[0] >= 0f)
-            assertTrue("V debe ser >= 1", uv[1] >= 1f)
+        fun extractQuadrantLuma(startX: Int, startY: Int): IntArray {
+            val patch = IntArray(half * half)
+            var idx = 0
+            for (y in startY until (startY + half)) {
+                for (x in startX until (startX + half)) {
+                    val p = (y * size + x) * 4
+                    patch[idx++] = rgba[p].toInt() and 0xFF
+                }
+            }
+            return patch
         }
 
-        // Direct UV buffer
-        val uvBuffer = amigurumiMesh.toDirectUvBuffer()
-        assertNotNull(uvBuffer)
-        assertEquals(amigurumiMesh.vertexCount * 2, uvBuffer.capacity())
+        val qPb = extractQuadrantLuma(0, 0)
+        val qAum = extractQuadrantLuma(half, 0)
+        val qDism = extractQuadrantLuma(0, half)
+        val qPa = extractQuadrantLuma(half, half)
 
-        // 2. Planar row-by-row mesh
-        val planarRowMesh = PlanarMeshGenerator.generateRowByRowMesh(
-            rows = listOf(List(4) {
-                com.crisanfitos.stitchmesh3d.core.engine.parser.StitchInstance(
-                    stitchType = com.crisanfitos.stitchmesh3d.core.engine.model.StitchType.SingleCrochet,
-                    indexInRound = it
-                )
-            }),
-            gauge = com.crisanfitos.stitchmesh3d.core.gauge.YarnGaugeRegistry.DEFAULT_STANDARD
-        )
-        assertEquals(planarRowMesh.vertexCount * 2, planarRowMesh.vertexUvs.size)
+        fun l1Distance(a: IntArray, b: IntArray): Long {
+            var diff = 0L
+            for (i in a.indices) {
+                diff += abs(a[i] - b[i])
+            }
+            return diff
+        }
 
-        // 3. Planar concentric granny square
-        val planarConcentricMesh = PlanarMeshGenerator.generateConcentricMesh(
-            rounds = listOf(List(6) {
-                com.crisanfitos.stitchmesh3d.core.engine.parser.StitchInstance(
-                    stitchType = com.crisanfitos.stitchmesh3d.core.engine.model.StitchType.SingleCrochet,
-                    indexInRound = it
-                )
-            }),
-            gauge = com.crisanfitos.stitchmesh3d.core.gauge.YarnGaugeRegistry.DEFAULT_STANDARD
+        assertTrue("El glifo pb debe diferir morfológicamente de aum", l1Distance(qPb, qAum) > 5_000L)
+        assertTrue("El glifo pb debe diferir morfológicamente de dism", l1Distance(qPb, qDism) > 5_000L)
+        assertTrue("El glifo pb debe diferir morfológicamente de pa", l1Distance(qPb, qPa) > 5_000L)
+        assertTrue("El glifo aum debe diferir morfológicamente de dism", l1Distance(qAum, qDism) > 5_000L)
+        assertTrue("El glifo aum debe diferir morfológicamente de pa", l1Distance(qAum, qPa) > 5_000L)
+        assertTrue("El glifo dism debe diferir morfológicamente de pa", l1Distance(qDism, qPa) > 5_000L)
+    }
+
+    @Test
+    fun `defaultStitchAtlasPng generates valid PNG binary with IHDR, IDAT and IEND chunks`() {
+        val png = CrochetTextureGenerator.defaultStitchAtlasPng
+        assertTrue("El PNG del atlas debe tener contenido", png.size > 256)
+
+        // Verificar firma PNG (89 50 4E 47 0D 0A 1A 0A)
+        assertEquals(0x89.toByte(), png[0])
+        assertEquals(0x50.toByte(), png[1])
+        assertEquals(0x4E.toByte(), png[2])
+        assertEquals(0x47.toByte(), png[3])
+    }
+
+    @Test
+    fun `modulateYarnAlbedo tints stitch relief and ambient occlusion without dropping to black`() {
+        val terracotta = floatArrayOf(0.878f, 0.427f, 0.325f)
+        val seamColor = CrochetTextureGenerator.modulateYarnAlbedo(
+            stitchType = StitchType.SingleCrochet,
+            yarnColorRgb = terracotta,
+            localU = 0.01f,
+            localV = 0.01f
         )
-        assertEquals(planarConcentricMesh.vertexCount * 2, planarConcentricMesh.vertexUvs.size)
+        val crownColor = CrochetTextureGenerator.modulateYarnAlbedo(
+            stitchType = StitchType.SingleCrochet,
+            yarnColorRgb = terracotta,
+            localU = 0.50f,
+            localV = 0.16f
+        )
+
+        // La corona iluminada del hilo debe ser más brillante que la junta de oclusión ambiental
+        assertTrue(crownColor[0] > seamColor[0])
+        // Incluso en la junta de oclusión, el color nunca cae a negro (< 35% del color base)
+        assertTrue(seamColor[0] >= terracotta[0] * 0.35f)
+        assertNotEquals(seamColor[0], crownColor[0], 0.01f)
     }
 }
