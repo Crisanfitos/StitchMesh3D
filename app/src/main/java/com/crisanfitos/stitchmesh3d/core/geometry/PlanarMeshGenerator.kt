@@ -159,20 +159,24 @@ object PlanarMeshGenerator {
                 currentX = xRight
 
                 val colorRgba = CrochetColorHelper.toRgbaFloats(inst.colorHex ?: defaultColorHex)
+                val uv00 = CrochetTextureGenerator.computeAtlasUv(inst.stitchType, 0f, 0f)
+                val uv10 = CrochetTextureGenerator.computeAtlasUv(inst.stitchType, 1f, 0f)
+                val uv11 = CrochetTextureGenerator.computeAtlasUv(inst.stitchType, 1f, 1f)
+                val uv01 = CrochetTextureGenerator.computeAtlasUv(inst.stitchType, 0f, 1f)
 
                 // --- CARA SUPERIOR (+Z) ---
-                val top00 = addVertex(xLeft, yBottom, halfT, 0f, 0f, 1f, colorRgba, 0f, 0f)
-                val top10 = addVertex(xRight, yBottom, halfT, 0f, 0f, 1f, colorRgba, 1f, 0f)
-                val top11 = addVertex(xRight, yTop, halfT, 0f, 0f, 1f, colorRgba, 1f, 1f)
-                val top01 = addVertex(xLeft, yTop, halfT, 0f, 0f, 1f, colorRgba, 0f, 1f)
+                val top00 = addVertex(xLeft, yBottom, halfT, 0f, 0f, 1f, colorRgba, uv00[0], uv00[1])
+                val top10 = addVertex(xRight, yBottom, halfT, 0f, 0f, 1f, colorRgba, uv10[0], uv10[1])
+                val top11 = addVertex(xRight, yTop, halfT, 0f, 0f, 1f, colorRgba, uv11[0], uv11[1])
+                val top01 = addVertex(xLeft, yTop, halfT, 0f, 0f, 1f, colorRgba, uv01[0], uv01[1])
                 addQuad(top00, top10, top11, top01)
 
                 // --- CARA INFERIOR (-Z) ---
                 // Orden invertido para winding CCW visto desde abajo
-                val bot00 = addVertex(xLeft, yBottom, -halfT, 0f, 0f, -1f, colorRgba, 0f, 0f)
-                val bot10 = addVertex(xRight, yBottom, -halfT, 0f, 0f, -1f, colorRgba, 1f, 0f)
-                val bot11 = addVertex(xRight, yTop, -halfT, 0f, 0f, -1f, colorRgba, 1f, 1f)
-                val bot01 = addVertex(xLeft, yTop, -halfT, 0f, 0f, -1f, colorRgba, 0f, 1f)
+                val bot00 = addVertex(xLeft, yBottom, -halfT, 0f, 0f, -1f, colorRgba, uv00[0], uv00[1])
+                val bot10 = addVertex(xRight, yBottom, -halfT, 0f, 0f, -1f, colorRgba, uv10[0], uv10[1])
+                val bot11 = addVertex(xRight, yTop, -halfT, 0f, 0f, -1f, colorRgba, uv11[0], uv11[1])
+                val bot01 = addVertex(xLeft, yTop, -halfT, 0f, 0f, -1f, colorRgba, uv01[0], uv01[1])
                 addQuad(bot00, bot01, bot11, bot10)
 
                 // --- BORDES PERIMETRALES ---
@@ -317,6 +321,10 @@ object PlanarMeshGenerator {
                 val thetaEnd = TWO_PI * (accumulatedWRel / totalWRel)
 
                 val colorRgba = CrochetColorHelper.toRgbaFloats(inst.colorHex ?: defaultColorHex)
+                val uv00 = CrochetTextureGenerator.computeAtlasUv(inst.stitchType, 0f, 0f)
+                val uv10 = CrochetTextureGenerator.computeAtlasUv(inst.stitchType, 1f, 0f)
+                val uv11 = CrochetTextureGenerator.computeAtlasUv(inst.stitchType, 1f, 1f)
+                val uv01 = CrochetTextureGenerator.computeAtlasUv(inst.stitchType, 0f, 1f)
 
                 val fStart = radiusFactor(thetaStart)
                 val fEnd = radiusFactor(thetaEnd)
@@ -333,31 +341,31 @@ object PlanarMeshGenerator {
 
                 if (r == 0) {
                     // Tapar el centro inicial mediante abanico (Triangle Fan)
-                    val topInStart = addVertex(xInStart, yInStart, halfT, 0f, 0f, 1f, colorRgba, 0f, 1f)
-                    val topInEnd = addVertex(xInEnd, yInEnd, halfT, 0f, 0f, 1f, colorRgba, 1f, 1f)
+                    val topInStart = addVertex(xInStart, yInStart, halfT, 0f, 0f, 1f, colorRgba, uv01[0], uv01[1])
+                    val topInEnd = addVertex(xInEnd, yInEnd, halfT, 0f, 0f, 1f, colorRgba, uv11[0], uv11[1])
                     indices.add(topCenterIdx)
                     indices.add(topInStart)
                     indices.add(topInEnd)
 
-                    val botInStart = addVertex(xInStart, yInStart, -halfT, 0f, 0f, -1f, colorRgba, 0f, 1f)
-                    val botInEnd = addVertex(xInEnd, yInEnd, -halfT, 0f, 0f, -1f, colorRgba, 1f, 1f)
+                    val botInStart = addVertex(xInStart, yInStart, -halfT, 0f, 0f, -1f, colorRgba, uv01[0], uv01[1])
+                    val botInEnd = addVertex(xInEnd, yInEnd, -halfT, 0f, 0f, -1f, colorRgba, uv11[0], uv11[1])
                     indices.add(botCenterIdx)
                     indices.add(botInEnd)
                     indices.add(botInStart)
                 }
 
                 // Cara Superior (+Z) del sector del anillo
-                val topIn0 = addVertex(xInStart, yInStart, halfT, 0f, 0f, 1f, colorRgba, 0f, 0f)
-                val topOut0 = addVertex(xOutStart, yOutStart, halfT, 0f, 0f, 1f, colorRgba, 0f, 1f)
-                val topOut1 = addVertex(xOutEnd, yOutEnd, halfT, 0f, 0f, 1f, colorRgba, 1f, 1f)
-                val topIn1 = addVertex(xInEnd, yInEnd, halfT, 0f, 0f, 1f, colorRgba, 1f, 0f)
+                val topIn0 = addVertex(xInStart, yInStart, halfT, 0f, 0f, 1f, colorRgba, uv00[0], uv00[1])
+                val topOut0 = addVertex(xOutStart, yOutStart, halfT, 0f, 0f, 1f, colorRgba, uv01[0], uv01[1])
+                val topOut1 = addVertex(xOutEnd, yOutEnd, halfT, 0f, 0f, 1f, colorRgba, uv11[0], uv11[1])
+                val topIn1 = addVertex(xInEnd, yInEnd, halfT, 0f, 0f, 1f, colorRgba, uv10[0], uv10[1])
                 addQuad(topIn0, topOut0, topOut1, topIn1)
 
                 // Cara Inferior (-Z) del sector del anillo
-                val botIn0 = addVertex(xInStart, yInStart, -halfT, 0f, 0f, -1f, colorRgba, 0f, 0f)
-                val botOut0 = addVertex(xOutStart, yOutStart, -halfT, 0f, 0f, -1f, colorRgba, 0f, 1f)
-                val botOut1 = addVertex(xOutEnd, yOutEnd, -halfT, 0f, 0f, -1f, colorRgba, 1f, 1f)
-                val botIn1 = addVertex(xInEnd, yInEnd, -halfT, 0f, 0f, -1f, colorRgba, 1f, 0f)
+                val botIn0 = addVertex(xInStart, yInStart, -halfT, 0f, 0f, -1f, colorRgba, uv00[0], uv00[1])
+                val botOut0 = addVertex(xOutStart, yOutStart, -halfT, 0f, 0f, -1f, colorRgba, uv01[0], uv01[1])
+                val botOut1 = addVertex(xOutEnd, yOutEnd, -halfT, 0f, 0f, -1f, colorRgba, uv11[0], uv11[1])
+                val botIn1 = addVertex(xInEnd, yInEnd, -halfT, 0f, 0f, -1f, colorRgba, uv10[0], uv10[1])
                 addQuad(botIn0, botIn1, botOut1, botOut0)
 
                 // Perímetro exterior (solo en la última vuelta)

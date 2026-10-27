@@ -72,8 +72,14 @@ object AdaptiveTessellator {
             colorsList.add(poleRgba[2])
             colorsList.add(poleRgba[3])
 
-            uvsList.add(0.5f)
-            uvsList.add(0.0f)
+            val poleStitch = firstRing.vertices.firstOrNull()?.stitchType
+            val poleUv = if (poleStitch != null) {
+                CrochetTextureGenerator.computeAtlasUv(poleStitch, 0.5f, 0.0f)
+            } else {
+                floatArrayOf(0.25f, 0.03f)
+            }
+            uvsList.add(poleUv[0])
+            uvsList.add(poleUv[1])
             currentOffset = 1
         }
 
@@ -97,8 +103,11 @@ object AdaptiveTessellator {
                 colorsList.add(rgba[2])
                 colorsList.add(rgba[3])
 
-                val u = j.toFloat()
-                val vCoord = (r + 1).toFloat()
+                val localU = if (j % 2 == 0) 0.0f else 1.0f
+                val localV = if (r % 2 == 0) 0.0f else 1.0f
+                val atlasUv = CrochetTextureGenerator.computeAtlasUv(v.stitchType, localU, localV)
+                val u = atlasUv[0]
+                val vCoord = atlasUv[1]
                 uvsList.add(u)
                 uvsList.add(vCoord)
                 currentOffset++
