@@ -7,6 +7,8 @@ import com.crisanfitos.stitchmesh3d.core.mvi.ViewState
 import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.PartTransformState
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.SceneGraphItem
+import com.crisanfitos.stitchmesh3d.ui.workspace.ProjectPartUiModel
+import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
 
 /**
  * Modo de manipulación interactiva directa en el visor CAD 3D.
@@ -53,6 +55,12 @@ data class AssemblyState(
  */
 sealed interface AssemblyIntent : ViewIntent {
     data class LoadProject(val projectId: String) : AssemblyIntent
+    data class SyncFromWorkbench(
+        val projectId: String,
+        val projectTitle: String,
+        val workbenchParts: List<ProjectPartUiModel>,
+        val roundsByPartId: Map<String, List<RoundItemUiModel>> = emptyMap()
+    ) : AssemblyIntent
     data class SelectPart(val partId: String) : AssemblyIntent
     data class ToggleVisibility(val partId: String) : AssemblyIntent
     data class ToggleLock(val partId: String) : AssemblyIntent
