@@ -289,6 +289,9 @@ fun MultiPartAssemblyScreen(
                                 state.selectedPart?.let {
                                     viewModel.processIntent(AssemblyIntent.ResetOrigin(it.id))
                                 }
+                            },
+                            onAlignAllShelf = {
+                                viewModel.processIntent(AssemblyIntent.AutoAlignShelfLayout)
                             }
                         )
                     }
@@ -428,6 +431,9 @@ fun MultiPartAssemblyScreen(
                                         state.selectedPart?.let {
                                             viewModel.processIntent(AssemblyIntent.ResetOrigin(it.id))
                                         }
+                                    },
+                                    onAlignAllShelf = {
+                                        viewModel.processIntent(AssemblyIntent.AutoAlignShelfLayout)
                                     }
                                 )
                             }
