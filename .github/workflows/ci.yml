@@ -18,6 +18,10 @@ jobs:
     name: Test, Lint and Assemble
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
     steps:
       - name: Checkout repository

@@ -1,0 +1,49 @@
+name: Supabase Database CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/supabase-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-migrations:
+    name: Link & Push Migrations to Supabase Cloud
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify Supabase CLI and migrations directory
+        run: |
+          supabase --version
+          mkdir -p supabase/migrations
+          ls -la supabase/
+
+      - name: Link to Supabase Cloud project and push migrations
+        run: |
+          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          if [ -n "$(ls -A supabase/migrations/*.sql 2>/dev/null)" ]; then
+            echo "Applying SQL migrations to Supabase Cloud ($SUPABASE_PROJECT_ID)..."
+            supabase db push --password "$SUPABASE_DB_PASSWORD"
+          else
+            echo "No SQL migrations present yet in supabase/migrations/ — link verified."
+          fi
