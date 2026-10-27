@@ -34,10 +34,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.crisanfitos.stitchmesh3d.domain.model.SyncStatus
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.StatusBadgeChip
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshOnAccent
+import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSageGreen
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceBorder
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceContainer
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceHigh
@@ -58,6 +60,7 @@ fun WorkspaceTopBar(
     validationStatus: LinterValidationStatus,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
+    syncStatus: SyncStatus = SyncStatus.SYNCED,
     onCalibrateTensionClick: (() -> Unit)? = null,
     onExportClick: (() -> Unit)? = null,
     onAssemblyClick: (() -> Unit)? = null
@@ -115,6 +118,23 @@ fun WorkspaceTopBar(
             }
         },
         actions = {
+            Box(
+                modifier = Modifier
+                    .testTag("workspace_sync_status_badge")
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(StitchMeshSurfaceHigh)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = syncStatus.labelEs,
+                    fontSize = 10.sp,
+                    color = if (syncStatus == SyncStatus.SYNCED) StitchMeshSageGreen else StitchMeshTextSecondary,
+                    maxLines = 1
+                )
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
             StatusBadgeChip(status = validationStatus)
 
             Spacer(modifier = Modifier.width(6.dp))
