@@ -6,6 +6,8 @@ import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.PartTransformState
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.SceneGraphItem
+import com.crisanfitos.stitchmesh3d.ui.workspace.ProjectAssemblySnapshot
+import com.crisanfitos.stitchmesh3d.ui.workspace.ProjectPartsSessionStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -27,15 +29,31 @@ class AssemblyViewModel @Inject constructor() :
         when (intent) {
             is AssemblyIntent.LoadProject -> {
                 if (intent.projectId.isNotBlank()) {
-                    setState {
-                        copy(
-                            projectId = intent.projectId,
-                            projectTitle = if (projectTitle.isBlank() || projectTitle == "Proyecto Amigurumi") {
-                                "Proyecto ${intent.projectId}"
-                            } else projectTitle
-                        )
+                    val snapshot = ProjectPartsSessionStore.getSnapshot(intent.projectId)
+                        ?: ProjectPartsSessionStore.getSnapshot("proj-default")
+                    if (snapshot != null && snapshot.parts.isNotEmpty()) {
+                        applySnapshotToState(intent.projectId, snapshot)
+                    } else {
+                        setState {
+                            copy(
+                                projectId = intent.projectId,
+                                projectTitle = if (projectTitle.isBlank() || projectTitle == "Proyecto Amigurumi") {
+                                    "Proyecto ${intent.projectId}"
+                                } else projectTitle
+                            )
+                        }
                     }
                 }
+            }
+
+            is AssemblyIntent.SyncFromWorkbench -> {
+                val snapshot = ProjectPartsSessionStore.publishFromWorkbench(
+                    projectId = intent.projectId,
+                    projectTitle = intent.projectTitle,
+                    parts = intent.workbenchParts,
+                    roundsByPartId = intent.roundsByPartId
+                )
+                applySnapshotToState(intent.projectId, snapshot)
             }
 
             is AssemblyIntent.SelectPart -> {
@@ -52,6 +70,7 @@ class AssemblyViewModel @Inject constructor() :
                         }
                     )
                 }
+                publishAssemblySessionIfLinked()
             }
 
             is AssemblyIntent.ToggleLock -> {
@@ -71,6 +90,7 @@ class AssemblyViewModel @Inject constructor() :
                         transformsByPartId = updatedTransforms
                     )
                 }
+                publishAssemblySessionIfLinked()
             }
 
             is AssemblyIntent.UpdateColor -> {
@@ -83,6 +103,7 @@ class AssemblyViewModel @Inject constructor() :
                         }
                     )
                 }
+                publishAssemblySessionIfLinked()
             }
 
             is AssemblyIntent.UpdatePosition -> {
@@ -97,6 +118,7 @@ class AssemblyViewModel @Inject constructor() :
                         copy(transformsByPartId = transformsByPartId + (intent.partId to updated))
                     } else this
                 }
+                publishAssemblySessionIfLinked()
             }
 
             is AssemblyIntent.UpdateRotation -> {
@@ -111,6 +133,7 @@ class AssemblyViewModel @Inject constructor() :
                         copy(transformsByPartId = transformsByPartId + (intent.partId to updated))
                     } else this
                 }
+                publishAssemblySessionIfLinked()
             }
 
             is AssemblyIntent.SnapPartToSurface -> {
@@ -131,6 +154,7 @@ class AssemblyViewModel @Inject constructor() :
                         copy(transformsByPartId = transformsByPartId + (intent.sourcePartId to updated))
                     } else this
                 }
+                publishAssemblySessionIfLinked()
                 sendEffect(AssemblyEffect.ShowSnackbar("Pieza anclada sobre superficie"))
             }
 
@@ -142,6 +166,7 @@ class AssemblyViewModel @Inject constructor() :
                         copy(transformsByPartId = transformsByPartId + (intent.partId to updated))
                     } else this
                 }
+                publishAssemblySessionIfLinked()
             }
 
             is AssemblyIntent.ResetOrigin -> {
@@ -152,6 +177,7 @@ class AssemblyViewModel @Inject constructor() :
                         copy(transformsByPartId = transformsByPartId + (intent.partId to updated))
                     } else this
                 }
+                publishAssemblySessionIfLinked()
             }
 
             is AssemblyIntent.SetGizmoMode -> {
@@ -267,6 +293,7 @@ class AssemblyViewModel @Inject constructor() :
                         showAddPartDialog = false
                     )
                 }
+                publishAssemblySessionIfLinked()
                 sendEffect(AssemblyEffect.ShowSnackbar("Pieza '${intent.name}' añadida"))
             }
 
@@ -287,6 +314,7 @@ class AssemblyViewModel @Inject constructor() :
                         partActionTarget = null
                     )
                 }
+                publishAssemblySessionIfLinked()
                 sendEffect(AssemblyEffect.ShowSnackbar("Pieza renombrada a '${intent.newName}'"))
             }
 
@@ -315,6 +343,7 @@ class AssemblyViewModel @Inject constructor() :
                         selectedPartId = newId
                     )
                 }
+                publishAssemblySessionIfLinked()
                 sendEffect(AssemblyEffect.ShowSnackbar("Pieza '${source.name}' duplicada"))
             }
 
@@ -335,8 +364,70 @@ class AssemblyViewModel @Inject constructor() :
                         partActionTarget = null
                     )
                 }
+                publishAssemblySessionIfLinked()
                 sendEffect(AssemblyEffect.ShowSnackbar("Pieza '${target?.name ?: intent.partId}' eliminada"))
             }
+        }
+    }
+
+    private fun applySnapshotToState(projectId: String, snapshot: ProjectAssemblySnapshot) {
+        val sceneItems = snapshot.toSceneGraphItems()
+        val resolvedTransforms = LinkedHashMap<String, PartTransformState>()
+        val n = sceneItems.size.coerceAtLeast(1)
+        sceneItems.forEachIndexed { index, item ->
+            val saved = snapshot.transformsByPartId[item.id]
+            if (saved != null) {
+                resolvedTransforms[item.id] = saved.copy(
+                    partName = item.name,
+                    isLocked = item.isLocked
+                )
+            } else {
+                // Posición inicial lado a lado por defecto sobre la cuadrícula X si no hay transformación previa
+                val defaultX = (index - (n - 1) / 2.0f) * 45.0f
+                resolvedTransforms[item.id] = PartTransformState(
+                    partId = item.id,
+                    partName = item.name,
+                    posX = defaultX,
+                    posY = 0f,
+                    posZ = 0f,
+                    isLocked = item.isLocked
+                )
+            }
+        }
+
+        val currentSelected = state.value.selectedPartId
+        val nextSelected = if (sceneItems.any { it.id == currentSelected }) {
+            currentSelected
+        } else {
+            sceneItems.firstOrNull()?.id ?: ""
+        }
+
+        setState {
+            copy(
+                projectId = projectId,
+                projectTitle = snapshot.projectTitle,
+                parts = sceneItems,
+                transformsByPartId = resolvedTransforms,
+                selectedPartId = nextSelected
+            )
+        }
+        ProjectPartsSessionStore.publishFromAssembly(
+            projectId = projectId,
+            projectTitle = snapshot.projectTitle,
+            sceneItems = sceneItems,
+            transformsByPartId = resolvedTransforms
+        )
+    }
+
+    private fun publishAssemblySessionIfLinked() {
+        val currentState = state.value
+        if (currentState.projectId.isNotBlank()) {
+            ProjectPartsSessionStore.publishFromAssembly(
+                projectId = currentState.projectId,
+                projectTitle = currentState.projectTitle,
+                sceneItems = currentState.parts,
+                transformsByPartId = currentState.transformsByPartId
+            )
         }
     }
 

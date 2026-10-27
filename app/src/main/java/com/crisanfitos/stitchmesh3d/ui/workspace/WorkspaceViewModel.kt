@@ -55,19 +55,63 @@ class WorkspaceViewModel @Inject constructor(
     val effects: SharedFlow<WorkspaceEffect> = _effects.asSharedFlow()
 
     init {
-        // Inicializar la geometría con las vueltas predeterminadas
+        // Inicializar la geometría con las vueltas predeterminadas y publicar snapshot inicial en el store compartido (SM-075)
+        publishCurrentSessionSnapshot()
         recalculateAndRebuildMesh(_state.value.rounds)
+    }
+
+    private fun publishCurrentSessionSnapshot(stateSnapshot: WorkspaceState = _state.value) {
+        ProjectPartsSessionStore.publishFromWorkbench(
+            projectId = stateSnapshot.projectId,
+            projectTitle = stateSnapshot.projectTitle,
+            parts = stateSnapshot.parts,
+            roundsByPartId = stateSnapshot.roundsByPartId
+        )
+    }
+
+    private fun applySessionSnapshotIfAvailable(targetProjectId: String): Boolean {
+        val snapshot = ProjectPartsSessionStore.getSnapshot(targetProjectId) ?: return false
+        if (snapshot.parts.isEmpty()) return false
+        val currentSelectedId = _state.value.selectedPartId
+        val nextSelectedId = if (snapshot.parts.any { it.id == currentSelectedId }) {
+            currentSelectedId
+        } else {
+            snapshot.parts.first().id
+        }
+        val activeRounds = snapshot.roundsByPartId[nextSelectedId]
+            ?: _state.value.rounds
+        _state.update {
+            it.copy(
+                projectId = snapshot.projectId,
+                projectTitle = snapshot.projectTitle,
+                parts = snapshot.parts,
+                roundsByPartId = snapshot.roundsByPartId,
+                selectedPartId = nextSelectedId,
+                rounds = activeRounds,
+                selectedRoundId = activeRounds.lastOrNull()?.id,
+                currentPeelRound = activeRounds.size
+            )
+        }
+        recalculateAndRebuildMesh(activeRounds)
+        return true
     }
 
     fun processIntent(intent: WorkspaceIntent) {
         when (intent) {
             is WorkspaceIntent.LoadProject -> {
-                _state.update {
-                    it.copy(
-                        projectId = intent.projectId,
-                        projectTitle = "Proyecto ${intent.projectId.take(8)}"
-                    )
+                if (!applySessionSnapshotIfAvailable(intent.projectId)) {
+                    _state.update {
+                        it.copy(
+                            projectId = intent.projectId,
+                            projectTitle = "Proyecto ${intent.projectId.take(8)}"
+                        )
+                    }
+                    publishCurrentSessionSnapshot()
                 }
+            }
+
+            is WorkspaceIntent.SyncFromSession -> {
+                applySessionSnapshotIfAvailable(_state.value.projectId)
             }
 
             is WorkspaceIntent.EditRoundInstruction -> {
@@ -182,6 +226,7 @@ class WorkspaceViewModel @Inject constructor(
                         currentPeelRound = targetRounds.size
                     )
                 }
+                publishCurrentSessionSnapshot()
                 recalculateAndRebuildMesh(targetRounds)
             }
 
@@ -260,6 +305,7 @@ class WorkspaceViewModel @Inject constructor(
                         partActionError = null
                     )
                 }
+                publishCurrentSessionSnapshot()
                 recalculateAndRebuildMesh(listOf(initialRound))
                 viewModelScope.launch {
                     _effects.emit(WorkspaceEffect.ShowToast("Pieza '$trimmed' creada"))
@@ -301,6 +347,7 @@ class WorkspaceViewModel @Inject constructor(
                         partActionError = null
                     )
                 }
+                publishCurrentSessionSnapshot()
                 viewModelScope.launch {
                     _effects.emit(WorkspaceEffect.ShowToast("Pieza renombrada a '$trimmed'"))
                 }
@@ -344,6 +391,7 @@ class WorkspaceViewModel @Inject constructor(
                         currentPeelRound = clonedRounds.size
                     )
                 }
+                publishCurrentSessionSnapshot()
                 recalculateAndRebuildMesh(clonedRounds)
                 viewModelScope.launch {
                     _effects.emit(WorkspaceEffect.ShowToast("Pieza duplicada: '$dupName'"))
@@ -399,6 +447,7 @@ class WorkspaceViewModel @Inject constructor(
                         partActionTarget = null
                     )
                 }
+                publishCurrentSessionSnapshot()
                 recalculateAndRebuildMesh(newRounds)
                 viewModelScope.launch {
                     _effects.emit(WorkspaceEffect.ShowToast("Pieza eliminada"))
@@ -413,6 +462,7 @@ class WorkspaceViewModel @Inject constructor(
                     currentParts.add(intent.toIndex, item)
                     val reindexed = currentParts.mapIndexed { idx, p -> p.copy(sortOrder = idx) }
                     _state.update { it.copy(parts = reindexed) }
+                    publishCurrentSessionSnapshot()
                 }
             }
 
@@ -472,10 +522,13 @@ class WorkspaceViewModel @Inject constructor(
             if (it.id == currentPartId) it.copy(roundCount = updatedRounds.size) else it
         }
         _state.update {
-            it.copy(
+            val next = it.copy(
                 parts = updatedParts,
-                roundsByPartId = updatedMap
+                roundsByPartId = updatedMap,
+                rounds = updatedRounds
             )
+            publishCurrentSessionSnapshot(next)
+            next
         }
         recalculateAndRebuildMesh(updatedRounds, peelLimit)
     }
@@ -630,7 +683,7 @@ class WorkspaceViewModel @Inject constructor(
                 val updatedParts = current.parts.map { p ->
                     if (p.id == currentPartId) p.copy(roundCount = validatedRounds.size, isValid = !hasErrors) else p
                 }
-                current.copy(
+                val nextState = current.copy(
                     parts = updatedParts,
                     roundsByPartId = updatedMap,
                     rounds = validatedRounds,
@@ -640,6 +693,8 @@ class WorkspaceViewModel @Inject constructor(
                     meshGeometry = newMesh,
                     lastValidMesh = lastValid
                 )
+                publishCurrentSessionSnapshot(nextState)
+                nextState
             }
         }
     }

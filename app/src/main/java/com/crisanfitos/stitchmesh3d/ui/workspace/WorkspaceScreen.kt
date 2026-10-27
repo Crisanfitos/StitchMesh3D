@@ -1,6 +1,7 @@
 package com.crisanfitos.stitchmesh3d.ui.workspace
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -8,6 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.AddPartDialog
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.DeletePartConfirmDialog
@@ -36,6 +40,21 @@ fun WorkspaceScreen(
     LaunchedEffect(projectId) {
         if (projectId != null) {
             viewModel.processIntent(WorkspaceIntent.LoadProject(projectId))
+        } else {
+            viewModel.processIntent(WorkspaceIntent.SyncFromSession)
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.processIntent(WorkspaceIntent.SyncFromSession)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 

@@ -135,6 +135,7 @@ data class WorkspaceState(
  */
 sealed interface WorkspaceIntent {
     data class LoadProject(val projectId: String) : WorkspaceIntent
+    data object SyncFromSession : WorkspaceIntent
     data class EditRoundInstruction(val roundId: String, val newInstruction: String) : WorkspaceIntent
     data class ChangeRoundColor(val roundId: String, val colorHex: String) : WorkspaceIntent
     data class SelectRound(val roundId: String) : WorkspaceIntent
