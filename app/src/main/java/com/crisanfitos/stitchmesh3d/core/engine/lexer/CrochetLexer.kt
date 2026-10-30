@@ -150,15 +150,21 @@ object CrochetLexer {
                             endIndex = offset + cursor
                         )
                     )
-                    continue
                 } else {
-                    cursor = hexStart + 1
+                    tokens.add(
+                        CrochetToken.Unknown(
+                            raw = hexCandidate,
+                            startIndex = absoluteIndex,
+                            endIndex = offset + cursor
+                        )
+                    )
                 }
+                continue
             }
 
             // Comas y delimitadores
             when (char) {
-                ',' -> {
+                ',', ';', '.', ':' -> {
                     tokens.add(CrochetToken.Comma(absoluteIndex, absoluteIndex + 1))
                     cursor++
                     continue
@@ -217,7 +223,7 @@ object CrochetLexer {
                     cursor++
                     continue
                 }
-                '*' -> {
+                '*', '\u00D7' -> {
                     tokens.add(CrochetToken.Multiply(absoluteIndex, absoluteIndex + 1))
                     cursor++
                     continue
@@ -268,6 +274,20 @@ object CrochetLexer {
             val wordStart = cursor
             while (cursor < len && (text[cursor].isLetterOrDigit() || text[cursor] == '-' || text[cursor] == '_')) {
                 cursor++
+            }
+            if (cursor == wordStart) {
+                val codePoint = Character.codePointAt(text, cursor)
+                val charCount = Character.charCount(codePoint)
+                val unknownSymbol = text.substring(wordStart, wordStart + charCount)
+                tokens.add(
+                    CrochetToken.Unknown(
+                        raw = unknownSymbol,
+                        startIndex = offset + wordStart,
+                        endIndex = offset + wordStart + charCount
+                    )
+                )
+                cursor += charCount
+                continue
             }
             val word = text.substring(wordStart, cursor)
 

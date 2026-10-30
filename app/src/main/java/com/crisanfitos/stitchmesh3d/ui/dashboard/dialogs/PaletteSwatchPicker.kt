@@ -23,8 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSageGreen
@@ -38,6 +40,13 @@ data class YarnPaletteColor(
     val name: String,
     val color: Color
 )
+
+/**
+ * Convierte un [Color] de Compose a su representación hexadecimal RGB estándar `#RRGGBB`
+ * extrayendo los canales de 8 bits en sRGB mediante [toArgb].
+ */
+fun Color.toHexRgbString(): String =
+    String.format(Locale.ROOT, "#%06X", 0xFFFFFF and this.toArgb())
 
 val DefaultCrochetPalette = listOf(
     YarnPaletteColor("Terracotta", StitchMeshTerracotta),

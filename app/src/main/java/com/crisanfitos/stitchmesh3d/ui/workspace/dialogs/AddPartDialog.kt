@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.DefaultCrochetPalette
+import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.toHexRgbString
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceContainer
@@ -70,7 +71,7 @@ fun AddPartDialog(
             return
         }
         val palette = DefaultCrochetPalette[selectedColorIndex]
-        val hex = String.format("#%06X", (0xFFFFFF and palette.color.value.toLong().toInt()))
+        val hex = palette.color.toHexRgbString()
         onConfirm(trimmed, hex, selectedTopology)
     }
 

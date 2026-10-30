@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.DefaultCrochetPalette
+import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.toHexRgbString
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceBorder
@@ -147,7 +148,7 @@ fun YarnColorPickerDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         DefaultCrochetPalette.forEach { item ->
-                            val hex = String.format("#%06X", (0xFFFFFF and item.color.value.toLong().toInt()))
+                            val hex = item.color.toHexRgbString()
                             val isSelected = currentColorHex.equals(hex, ignoreCase = true)
                             Box(
                                 modifier = Modifier
