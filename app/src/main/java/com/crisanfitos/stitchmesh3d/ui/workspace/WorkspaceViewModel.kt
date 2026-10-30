@@ -13,6 +13,10 @@ import com.crisanfitos.stitchmesh3d.core.geometry.RingProfile
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfileGenerator
 import com.crisanfitos.stitchmesh3d.core.geometry.StuffingInflationFilter
 import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
+import com.crisanfitos.stitchmesh3d.domain.model.PatternRound
+import com.crisanfitos.stitchmesh3d.domain.model.Project
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
+import com.crisanfitos.stitchmesh3d.domain.repository.ProjectRepository
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
 import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetTokenFormatter
@@ -29,13 +33,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.UUID
 import javax.inject.Inject
 
 /**
  * ViewModel del espacio de trabajo CAD de StitchMesh 3D.
- * Implementa el patrón MVI / UDF conforme a app_flow_navigation.md (§2) y SM-029.
+ * Implementa el patrón MVI / UDF conforme a app_flow_navigation.md (§2) y SM-029/SM-080.
  *
  * Responsabilidades:
+ * - Persistencia local reactiva y atómica respaldada por Room ([ProjectRepository]).
  * - Ciclo reactivo: Carga -> Parsing -> Validación Aritmética -> Teselación 3D en Dispatchers.Default (RND-2).
  * - Congelamiento de geometría 3D ante erratas sintácticas/aritméticas, preservando la última malla válida.
  * - Regeneración inmediata y continua de la malla 3D cuando el patrón vuelve a ser válido (RF-3.5).
@@ -43,10 +49,12 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class WorkspaceViewModel @Inject constructor(
-    @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher
+    @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
+    private val projectRepository: ProjectRepository? = null
 ) : ViewModel() {
 
-    constructor() : this(Dispatchers.Default)
+    constructor() : this(Dispatchers.Default, null)
+    constructor(projectRepository: ProjectRepository) : this(Dispatchers.Default, projectRepository)
 
     private val _state = MutableStateFlow(WorkspaceState())
     val state: StateFlow<WorkspaceState> = _state.asStateFlow()
@@ -67,6 +75,123 @@ class WorkspaceViewModel @Inject constructor(
             parts = stateSnapshot.parts,
             roundsByPartId = stateSnapshot.roundsByPartId
         )
+        persistProjectStateToRoom(stateSnapshot)
+    }
+
+    private fun persistProjectStateToRoom(stateSnapshot: WorkspaceState) {
+        val repo = projectRepository ?: return
+        viewModelScope.launch(defaultDispatcher) {
+            try {
+                val existing = repo.getProjectById(stateSnapshot.projectId)
+                val now = System.currentTimeMillis()
+                val partsToPersist = stateSnapshot.parts.mapIndexed { idx, p ->
+                    val rounds = stateSnapshot.roundsByPartId[p.id]?.mapIndexed { rIdx, r ->
+                        PatternRound(
+                            id = if (r.id.isNotBlank()) r.id else UUID.randomUUID().toString(),
+                            partId = p.id,
+                            roundNumber = rIdx + 1,
+                            rawInstruction = r.rawInstruction,
+                            colorHex = r.colorHex ?: p.colorHex,
+                            consumedStitches = r.consumedStitches,
+                            producedStitches = r.producedStitches,
+                            declaredStitches = r.declaredStitches,
+                            isValid = r.isValid,
+                            createdAt = now
+                        )
+                    } ?: emptyList()
+
+                    ProjectPart(
+                        id = if (p.id.isNotBlank()) p.id else UUID.randomUUID().toString(),
+                        projectId = stateSnapshot.projectId,
+                        name = p.name,
+                        topologyType = p.topologyType,
+                        sortOrder = idx,
+                        isValid = p.isValid,
+                        createdAt = now,
+                        rounds = rounds
+                    )
+                }
+
+                val projectToSave = existing?.copy(
+                    title = stateSnapshot.projectTitle,
+                    hookSizeMm = stateSnapshot.hookSizeMm,
+                    updatedAt = now,
+                    parts = partsToPersist
+                ) ?: Project(
+                    id = stateSnapshot.projectId,
+                    title = stateSnapshot.projectTitle,
+                    hookSizeMm = stateSnapshot.hookSizeMm,
+                    yarnWeightCategory = YarnWeightCategory.entries.firstOrNull { it.displayName == stateSnapshot.yarnWeightName } ?: YarnWeightCategory.MEDIUM,
+                    isValid = stateSnapshot.validationStatus == LinterValidationStatus.VALID,
+                    createdAt = now,
+                    updatedAt = now,
+                    parts = partsToPersist
+                )
+                repo.insertOrUpdateProject(projectToSave)
+            } catch (_: Throwable) {}
+        }
+    }
+
+    private fun loadProjectFromRepositoryOrSession(projectId: String) {
+        viewModelScope.launch {
+            val repoProject = withContext(defaultDispatcher) {
+                projectRepository?.getProjectById(projectId)
+            }
+            if (repoProject != null && repoProject.parts.isNotEmpty()) {
+                val uiParts = repoProject.parts.map { part ->
+                    ProjectPartUiModel(
+                        id = part.id,
+                        name = part.name,
+                        roundCount = part.rounds.size,
+                        colorHex = part.rounds.firstOrNull()?.colorHex ?: "#E06D53",
+                        isValid = part.isValid,
+                        sortOrder = part.sortOrder,
+                        topologyType = part.topologyType
+                    )
+                }
+                val roundsMap = repoProject.parts.associate { part ->
+                    part.id to part.rounds.map { r ->
+                        RoundItemUiModel(
+                            id = r.id,
+                            roundNumber = r.roundNumber,
+                            rawInstruction = r.rawInstruction,
+                            producedStitches = r.producedStitches,
+                            consumedStitches = r.consumedStitches,
+                            declaredStitches = r.declaredStitches,
+                            isValid = r.isValid,
+                            colorHex = r.colorHex
+                        )
+                    }
+                }
+                val firstPartId = uiParts.first().id
+                val activeRounds = roundsMap[firstPartId] ?: emptyList()
+
+                _state.update {
+                    it.copy(
+                        projectId = repoProject.id,
+                        projectTitle = repoProject.title,
+                        hookSizeMm = repoProject.hookSizeMm,
+                        yarnWeightName = repoProject.yarnWeightCategory.displayName,
+                        parts = uiParts,
+                        roundsByPartId = roundsMap,
+                        selectedPartId = firstPartId,
+                        rounds = activeRounds,
+                        selectedRoundId = activeRounds.lastOrNull()?.id,
+                        currentPeelRound = activeRounds.size
+                    )
+                }
+                publishCurrentSessionSnapshot()
+                recalculateAndRebuildMesh(activeRounds)
+            } else if (!applySessionSnapshotIfAvailable(projectId)) {
+                _state.update {
+                    it.copy(
+                        projectId = projectId,
+                        projectTitle = "Proyecto ${projectId.take(8)}"
+                    )
+                }
+                publishCurrentSessionSnapshot()
+            }
+        }
     }
 
     private fun applySessionSnapshotIfAvailable(targetProjectId: String): Boolean {
@@ -99,15 +224,7 @@ class WorkspaceViewModel @Inject constructor(
     fun processIntent(intent: WorkspaceIntent) {
         when (intent) {
             is WorkspaceIntent.LoadProject -> {
-                if (!applySessionSnapshotIfAvailable(intent.projectId)) {
-                    _state.update {
-                        it.copy(
-                            projectId = intent.projectId,
-                            projectTitle = "Proyecto ${intent.projectId.take(8)}"
-                        )
-                    }
-                    publishCurrentSessionSnapshot()
-                }
+                loadProjectFromRepositoryOrSession(intent.projectId)
             }
 
             is WorkspaceIntent.SyncFromSession -> {

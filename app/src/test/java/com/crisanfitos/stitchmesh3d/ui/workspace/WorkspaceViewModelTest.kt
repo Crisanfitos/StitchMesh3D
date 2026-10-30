@@ -1,8 +1,15 @@
 package com.crisanfitos.stitchmesh3d.ui.workspace
 
+import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
+import com.crisanfitos.stitchmesh3d.domain.model.PatternRound
+import com.crisanfitos.stitchmesh3d.domain.model.Project
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
+import com.crisanfitos.stitchmesh3d.domain.repository.ProjectRepository
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -134,5 +141,133 @@ class WorkspaceViewModelTest {
 
         val r2 = viewModel.state.value.rounds.first { it.id == "r2" }
         assertEquals("6 aum pe", r2.rawInstruction)
+    }
+
+    @Test
+    fun `loadProject fetches from ProjectRepository and updates workspace state`() = runTest(testDispatcher) {
+        val testProject = Project(
+            id = "proj-repo-1",
+            title = "Repo Amigurumi",
+            yarnWeightCategory = YarnWeightCategory.MEDIUM,
+            hookSizeMm = 3.5f,
+            parts = listOf(
+                ProjectPart(
+                    id = "p-custom",
+                    projectId = "proj-repo-1",
+                    name = "Cuerpo",
+                    rounds = listOf(
+                        PatternRound(
+                            id = "r-c1",
+                            partId = "p-custom",
+                            roundNumber = 1,
+                            rawInstruction = "AM 6 pb",
+                            producedStitches = 6,
+                            isValid = true
+                        )
+                    )
+                )
+            )
+        )
+        val fakeRepo = FakeTestProjectRepository(mutableMapOf("proj-repo-1" to testProject))
+        val viewModel = WorkspaceViewModel(defaultDispatcher = testDispatcher, projectRepository = fakeRepo)
+        testScheduler.advanceUntilIdle()
+
+        viewModel.processIntent(WorkspaceIntent.LoadProject("proj-repo-1"))
+        testScheduler.advanceUntilIdle()
+
+        val state = viewModel.state.value
+        assertEquals("proj-repo-1", state.projectId)
+        assertEquals("Repo Amigurumi", state.projectTitle)
+        assertEquals(3.5f, state.hookSizeMm)
+        assertEquals(1, state.parts.size)
+        assertEquals("p-custom", state.selectedPartId)
+        assertEquals(1, state.rounds.size)
+        assertEquals("AM 6 pb", state.rounds[0].rawInstruction)
+    }
+
+    @Test
+    fun `modifying rounds persists updated state to ProjectRepository`() = runTest(testDispatcher) {
+        val testProject = Project(
+            id = "proj-persist",
+            title = "Test Persist",
+            yarnWeightCategory = YarnWeightCategory.MEDIUM,
+            hookSizeMm = 4.0f,
+            parts = listOf(
+                ProjectPart(
+                    id = "p1",
+                    projectId = "proj-persist",
+                    name = "Cabeza",
+                    rounds = listOf(
+                        PatternRound(
+                            id = "r1",
+                            partId = "p1",
+                            roundNumber = 1,
+                            rawInstruction = "AM 6",
+                            producedStitches = 6,
+                            isValid = true
+                        )
+                    )
+                )
+            )
+        )
+        val fakeRepo = FakeTestProjectRepository(mutableMapOf("proj-persist" to testProject))
+        val viewModel = WorkspaceViewModel(defaultDispatcher = testDispatcher, projectRepository = fakeRepo)
+        testScheduler.advanceUntilIdle()
+
+        viewModel.processIntent(WorkspaceIntent.LoadProject("proj-persist"))
+        testScheduler.advanceUntilIdle()
+
+        viewModel.processIntent(WorkspaceIntent.AddRound)
+        testScheduler.advanceUntilIdle()
+
+        val persisted = fakeRepo.getProjectById("proj-persist")
+        assertNotNull(persisted)
+        val part = persisted!!.parts.firstOrNull { it.id == "p1" }
+        assertNotNull(part)
+        assertEquals(2, part!!.rounds.size)
+    }
+}
+
+private class FakeTestProjectRepository(
+    private val projects: MutableMap<String, Project> = mutableMapOf()
+) : ProjectRepository {
+
+    override fun getAllProjectsFlow(): Flow<List<Project>> = MutableStateFlow(projects.values.toList())
+
+    override suspend fun getProjectById(projectId: String): Project? = projects[projectId]
+
+    override fun getProjectByIdFlow(projectId: String): Flow<Project?> = MutableStateFlow(projects[projectId])
+
+    override suspend fun insertOrUpdateProject(project: Project) {
+        projects[project.id] = project
+    }
+
+    override suspend fun deleteProjectById(projectId: String) {
+        projects.remove(projectId)
+    }
+
+    override suspend fun insertPart(part: ProjectPart) {
+        val proj = projects[part.projectId] ?: return
+        val updatedParts = proj.parts.filter { it.id != part.id } + part
+        projects[proj.id] = proj.copy(parts = updatedParts)
+    }
+
+    override suspend fun deletePartById(partId: String) {
+        projects.forEach { (id, proj) ->
+            projects[id] = proj.copy(parts = proj.parts.filter { it.id != partId })
+        }
+    }
+
+    override suspend fun insertRound(round: PatternRound) {}
+
+    override suspend fun deleteRoundById(roundId: String) {}
+
+    override suspend fun replaceRoundsForPart(partId: String, rounds: List<PatternRound>) {
+        projects.forEach { (id, proj) ->
+            val updatedParts = proj.parts.map { part ->
+                if (part.id == partId) part.copy(rounds = rounds) else part
+            }
+            projects[id] = proj.copy(parts = updatedParts)
+        }
     }
 }

@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import com.crisanfitos.stitchmesh3d.data.local.entity.ProjectEntity
 import com.crisanfitos.stitchmesh3d.data.local.entity.ProjectWithPartsAndRounds
 import kotlinx.coroutines.flow.Flow
@@ -30,7 +31,7 @@ interface ProjectDao {
     @Query("SELECT * FROM projects WHERE id = :id")
     suspend fun getProjectWithDetails(id: String): ProjectWithPartsAndRounds?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertProject(project: ProjectEntity)
 
     @Query("DELETE FROM projects WHERE id = :id")

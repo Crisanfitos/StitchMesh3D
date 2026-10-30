@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import com.crisanfitos.stitchmesh3d.data.local.entity.ProjectPartEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -13,7 +14,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ProjectPartDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertPart(part: ProjectPartEntity)
 
     @Query("DELETE FROM project_parts WHERE id = :id")

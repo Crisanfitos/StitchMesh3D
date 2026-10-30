@@ -1,5 +1,7 @@
 package com.crisanfitos.stitchmesh3d.data.repository
 
+import androidx.room.withTransaction
+import com.crisanfitos.stitchmesh3d.data.local.StitchMeshDatabase
 import com.crisanfitos.stitchmesh3d.data.local.dao.PatternRoundDao
 import com.crisanfitos.stitchmesh3d.data.local.dao.ProjectDao
 import com.crisanfitos.stitchmesh3d.data.local.dao.ProjectPartDao
@@ -15,14 +17,38 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Implementación del repositorio de proyectos respaldado por Room Database.
+ * Implementación del repositorio de proyectos respaldado por Room Database con soporte transaccional seguro.
  */
 @Singleton
-class ProjectRepositoryImpl @Inject constructor(
+class ProjectRepositoryImpl(
     private val projectDao: ProjectDao,
     private val projectPartDao: ProjectPartDao,
-    private val patternRoundDao: PatternRoundDao
+    private val patternRoundDao: PatternRoundDao,
+    private val database: StitchMeshDatabase?
 ) : ProjectRepository {
+
+    @Inject
+    constructor(
+        database: StitchMeshDatabase,
+        projectDao: ProjectDao,
+        projectPartDao: ProjectPartDao,
+        patternRoundDao: PatternRoundDao
+    ) : this(projectDao, projectPartDao, patternRoundDao, database as StitchMeshDatabase?)
+
+    constructor(
+        projectDao: ProjectDao,
+        projectPartDao: ProjectPartDao,
+        patternRoundDao: PatternRoundDao
+    ) : this(projectDao, projectPartDao, patternRoundDao, null)
+
+    private suspend fun <R> runInTransaction(block: suspend () -> R): R {
+        val db = database
+        return if (db != null) {
+            db.withTransaction { block() }
+        } else {
+            block()
+        }
+    }
 
     override fun getAllProjectsFlow(): Flow<List<Project>> {
         return projectDao.getAllProjectsWithDetailsFlow().map { list ->
@@ -39,8 +65,25 @@ class ProjectRepositoryImpl @Inject constructor(
     }
 
     override suspend fun insertOrUpdateProject(project: Project) {
-        projectDao.insertProject(project.toEntity())
-        for (part in project.parts) {
+        runInTransaction {
+            projectDao.insertProject(project.toEntity())
+            for (part in project.parts) {
+                projectPartDao.insertPart(part.toEntity())
+                if (part.rounds.isNotEmpty()) {
+                    patternRoundDao.replaceRoundsForPart(part.id, part.rounds.map { it.toEntity() })
+                }
+            }
+        }
+    }
+
+    override suspend fun deleteProjectById(projectId: String) {
+        runInTransaction {
+            projectDao.deleteProjectById(projectId)
+        }
+    }
+
+    override suspend fun insertPart(part: ProjectPart) {
+        runInTransaction {
             projectPartDao.insertPart(part.toEntity())
             if (part.rounds.isNotEmpty()) {
                 patternRoundDao.replaceRoundsForPart(part.id, part.rounds.map { it.toEntity() })
@@ -48,19 +91,10 @@ class ProjectRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun deleteProjectById(projectId: String) {
-        projectDao.deleteProjectById(projectId)
-    }
-
-    override suspend fun insertPart(part: ProjectPart) {
-        projectPartDao.insertPart(part.toEntity())
-        if (part.rounds.isNotEmpty()) {
-            patternRoundDao.replaceRoundsForPart(part.id, part.rounds.map { it.toEntity() })
-        }
-    }
-
     override suspend fun deletePartById(partId: String) {
-        projectPartDao.deletePartById(partId)
+        runInTransaction {
+            projectPartDao.deletePartById(partId)
+        }
     }
 
     override suspend fun insertRound(round: PatternRound) {
@@ -72,6 +106,8 @@ class ProjectRepositoryImpl @Inject constructor(
     }
 
     override suspend fun replaceRoundsForPart(partId: String, rounds: List<PatternRound>) {
-        patternRoundDao.replaceRoundsForPart(partId, rounds.map { it.toEntity() })
+        runInTransaction {
+            patternRoundDao.replaceRoundsForPart(partId, rounds.map { it.toEntity() })
+        }
     }
 }
