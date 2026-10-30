@@ -49,7 +49,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -57,6 +56,7 @@ import com.crisanfitos.stitchmesh3d.ui.dashboard.components.ProjectCard
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.ProjectCardUiModel
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.SearchAndFilterBar
 import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.NewProjectModalSheet
+import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.toHexRgbString
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
@@ -223,7 +223,7 @@ fun DashboardContent(
             NewProjectModalSheet(
                 onDismiss = { onIntent(DashboardIntent.DismissCreateProjectModal) },
                 onCreateProject = { title, structureType, yarnWeight, hookSizeMm, primaryColor ->
-                    val colorHex = String.format("#%06X", 0xFFFFFF and primaryColor.toArgb())
+                    val colorHex = primaryColor.toHexRgbString()
                     onIntent(
                         DashboardIntent.CreateProject(
                             title = title,

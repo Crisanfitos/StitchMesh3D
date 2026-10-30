@@ -1,9 +1,11 @@
 package com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs
 
+import androidx.compose.ui.graphics.Color
 import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,5 +42,26 @@ class NewProjectDialogTest {
         assertFalse(emptyTitle.trim().isNotEmpty())
         assertFalse(whitespaceTitle.trim().isNotEmpty())
         assertTrue(validTitle.trim().isNotEmpty())
+    }
+
+    @Test
+    fun `toHexRgbString extracts real sRGB hex values for all DefaultCrochetPalette swatches instead of black`() {
+        val hexBySwatch = DefaultCrochetPalette.associate { it.name to it.color.toHexRgbString() }
+
+        DefaultCrochetPalette.forEach { swatch ->
+            val hex = swatch.color.toHexRgbString()
+            assertTrue("Expected #RRGGBB format, got $hex", hex.matches(Regex("^#[0-9A-F]{6}$")))
+            assertNotEquals("Palette swatch '${swatch.name}' must not collapse to #000000", "#000000", hex)
+        }
+
+        assertEquals(DefaultCrochetPalette.size, hexBySwatch.values.toSet().size)
+        assertEquals("#E06D53", hexBySwatch["Terracotta"])
+        assertEquals("#F5EBE0", hexBySwatch["Crema Natural"])
+        assertEquals("#2C2F38", hexBySwatch["Carbón Técnico"])
+        assertEquals("#4A7C9B", hexBySwatch["Azul Nórdico"])
+        assertEquals("#D48B96", hexBySwatch["Rosa Empolvado"])
+
+        assertEquals("#000000", Color.Black.toHexRgbString())
+        assertEquals("#FFFFFF", Color.White.toHexRgbString())
     }
 }

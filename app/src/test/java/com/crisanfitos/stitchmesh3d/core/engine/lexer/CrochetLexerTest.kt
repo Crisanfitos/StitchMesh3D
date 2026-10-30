@@ -188,5 +188,77 @@ class CrochetLexerTest {
         assertEquals(StitchType.Chain, s2?.get(0)?.stitchType)
         assertEquals(10, s2?.get(0)?.count)
     }
+
+    @Test(timeout = 1000L)
+    fun `tokenizes benign punctuation and unicode multiplier without hanging`() {
+        val parsedPeriod = com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser.parse("V1: 6 pb. (6)")
+        assertTrue(parsedPeriod.isSuccess)
+        assertEquals(6, parsedPeriod.ast?.totalProducedStitches)
+
+        val parsedSemicolon = com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser.parse("V2: 3 pb; 1 aum; 2 pb (7)")
+        assertTrue(parsedSemicolon.isSuccess)
+        assertEquals(7, parsedSemicolon.ast?.totalProducedStitches)
+
+        val parsedUnicodeMul = com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser.parse("V3: [1 pb, 1 aum] × 6 (18)")
+        assertTrue(parsedUnicodeMul.isSuccess)
+        assertEquals(18, parsedUnicodeMul.ast?.totalProducedStitches)
+
+        val strayColon = CrochetLexer.tokenize("Base: 6 pb")
+        assertEquals(1, strayColon.unknownTokens.size)
+        assertEquals("Base", strayColon.unknownTokens.first().raw)
+        assertEquals(1, strayColon.tokens.filterIsInstance<CrochetToken.StitchToken>().size)
+    }
+
+    @Test(timeout = 1000L)
+    fun `never hangs on unrecognized symbols malformed hashes or surrogate emojis`() {
+        val inputs = listOf(
+            "V1: 3 pb + 3 pb / rematar = 6 @ ! ? \" '",
+            "#",
+            "# ",
+            "#12 6 pb",
+            "V1: - 6 pb",
+            "V1: 6 pb 🧶✨"
+        )
+
+        for (input in inputs) {
+            val result = CrochetLexer.tokenize(input)
+            assertTrue("Expected at least one unknown token for: $input", result.hasUnknownTokens)
+            for (unknown in result.unknownTokens) {
+                assertTrue("Unknown token must never be empty for: $input", unknown.raw.isNotEmpty())
+                assertTrue(
+                    "Unknown token indices must advance strictly for: $input",
+                    unknown.endIndex > unknown.startIndex
+                )
+            }
+        }
+
+        val emojiResult = CrochetLexer.tokenize("6 pb 🧶")
+        assertEquals("🧶", emojiResult.unknownTokens.single().raw)
+        assertEquals(2, emojiResult.unknownTokens.single().endIndex - emojiResult.unknownTokens.single().startIndex)
+
+        val invalidHashNumber = CrochetLexer.tokenize("#12 6 pb")
+        assertEquals("#12", invalidHashNumber.unknownTokens.single().raw)
+    }
+
+    @Test
+    fun `meets RND-2 latency under 30ms for 200 rounds with mixed punctuation`() {
+        val pattern200 = List(200) { idx ->
+            val r = idx + 1
+            if (r == 1) "V1: AM [6]. (6)"
+            else "V$r: [1 pb; 1 aum] × 3, 6 pb. (15)"
+        }
+
+        // Warm-up JVM JIT
+        repeat(5) {
+            pattern200.forEach { com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser.parse(it) }
+        }
+
+        val startNanos = System.nanoTime()
+        val parsed = pattern200.map { com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser.parse(it) }
+        val elapsedMs = (System.nanoTime() - startNanos) / 1_000_000.0
+
+        assertTrue(parsed.all { it.isSuccess })
+        assertTrue("Expected < 30 ms for 200 rounds (RND-2), got ${elapsedMs}ms", elapsedMs < 30.0)
+    }
 }
 
