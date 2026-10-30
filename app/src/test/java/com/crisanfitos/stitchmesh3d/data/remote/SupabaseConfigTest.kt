@@ -30,4 +30,15 @@ class SupabaseConfigTest {
 
         assertFalse(config.isReadyForNetwork)
     }
+
+    @Test
+    fun `default instance without configuration is not ready for network`() {
+        val config = SupabaseConfig(
+            projectId = "",
+            supabaseUrl = "",
+            supabaseAnonKey = ""
+        )
+
+        assertFalse(config.isReadyForNetwork)
+    }
 }

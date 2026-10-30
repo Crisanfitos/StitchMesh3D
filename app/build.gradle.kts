@@ -16,10 +16,10 @@ val localProps = Properties().apply {
 
 val supabaseProjectId: String = localProps.getProperty("SUPABASE_PROJECT_ID")
     ?: System.getenv("SUPABASE_PROJECT_ID")
-    ?: "odgjwekjazwcyyqbgiqi"
+    ?: ""
 val supabaseUrl: String = localProps.getProperty("SUPABASE_URL")
     ?: System.getenv("SUPABASE_URL")
-    ?: "https://odgjwekjazwcyyqbgiqi.supabase.co"
+    ?: ""
 val supabaseAnonKey: String = localProps.getProperty("SUPABASE_ANON_KEY")
     ?: System.getenv("SUPABASE_ANON_KEY")
     ?: ""
