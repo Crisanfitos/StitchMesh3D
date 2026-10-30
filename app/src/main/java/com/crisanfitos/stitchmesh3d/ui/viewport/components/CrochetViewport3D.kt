@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
@@ -24,6 +27,8 @@ import com.google.android.filament.Skybox
 import com.google.android.filament.utils.GestureDetector
 import com.google.android.filament.utils.Manipulator
 import com.google.android.filament.utils.ModelViewer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 
 /**
@@ -56,29 +61,46 @@ fun CrochetViewport3D(
     val indirectLightRef = remember { arrayOfNulls<IndirectLight>(1) }
     val isReleasedRef = remember { booleanArrayOf(false) }
 
-    // Generar binario GLB directo si hay geometría disponible
-    val glbBuffer: ByteBuffer? = remember(meshGeometry, yarnColor, roughness, isWireframe) {
+    // Generar binario GLB de forma asíncrona fuera del hilo de UI (Dispatchers.Default) para evitar jank (RND-2, RF-3.5)
+    var glbBuffer by remember { mutableStateOf<ByteBuffer?>(null) }
+
+    LaunchedEffect(meshGeometry, yarnColor, roughness, isWireframe) {
         if (meshGeometry != null && meshGeometry.vertexCount > 0 && meshGeometry.indices.isNotEmpty()) {
-            GlbMeshBuilder.buildGlb(
-                mesh = meshGeometry,
-                yarnColor = yarnColor,
-                roughness = roughness,
-                isWireframe = isWireframe
-            )
+            val buffer = withContext(Dispatchers.Default) {
+                GlbMeshBuilder.buildGlb(
+                    mesh = meshGeometry,
+                    yarnColor = yarnColor,
+                    roughness = roughness,
+                    isWireframe = isWireframe
+                )
+            }
+            glbBuffer = buffer
         } else {
-            null
+            glbBuffer = null
         }
     }
 
     LaunchedEffect(glbBuffer) {
         val viewer = modelViewerRef[0] ?: return@LaunchedEffect
         val manipulator = manipulatorRef[0]
-        if (glbBuffer != null) {
+        val currentGlb = glbBuffer
+        if (currentGlb != null) {
             try {
-                glbBuffer.rewind()
+                currentGlb.rewind()
                 // Preservar la orientación y zoom actual de cámara para evitar saltos o parpadeos (RF-3.5)
                 val currentCameraBookmark = try { manipulator?.currentBookmark } catch (_: Throwable) { null }
-                viewer.loadModelGlb(glbBuffer)
+
+                // Destruir limpiamente el modelo anterior para evitar acumulación de entidades y fugas nativas Filament
+                try {
+                    viewer.destroyModel()
+                } catch (_: Throwable) {
+                    viewer.asset?.let { asset ->
+                        try { viewer.scene.removeEntities(asset.entities) } catch (_: Throwable) {}
+                        try { viewer.scene.removeEntities(asset.lightEntities) } catch (_: Throwable) {}
+                    }
+                }
+
+                viewer.loadModelGlb(currentGlb)
                 viewer.transformToUnitCube()
                 if (currentCameraBookmark != null) {
                     try {
@@ -90,11 +112,15 @@ fun CrochetViewport3D(
             }
         } else {
             try {
-                viewer.asset?.let { asset ->
-                    viewer.scene.removeEntities(asset.entities)
-                    viewer.scene.removeEntities(asset.lightEntities)
-                }
-            } catch (_: Throwable) {}
+                viewer.destroyModel()
+            } catch (_: Throwable) {
+                try {
+                    viewer.asset?.let { asset ->
+                        viewer.scene.removeEntities(asset.entities)
+                        viewer.scene.removeEntities(asset.lightEntities)
+                    }
+                } catch (_: Throwable) {}
+            }
         }
     }
 
@@ -240,9 +266,10 @@ fun CrochetViewport3D(
                         choreographerCallbackRef[0] = frameCallback
                         Choreographer.getInstance().postFrameCallback(frameCallback)
 
-                        if (glbBuffer != null) {
-                            glbBuffer.rewind()
-                            viewer.loadModelGlb(glbBuffer)
+                        val initGlb = glbBuffer
+                        if (initGlb != null) {
+                            initGlb.rewind()
+                            viewer.loadModelGlb(initGlb)
                             viewer.transformToUnitCube()
                         }
                     } catch (t: Throwable) {

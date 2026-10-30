@@ -79,7 +79,7 @@ object MeshRaycaster {
         val vertexCount = (rings + 1) * (sectors + 1)
         val positions = FloatArray(vertexCount * 3)
         val normals = FloatArray(vertexCount * 3)
-        val indicesList = mutableListOf<Short>()
+        val indicesList = mutableListOf<Int>()
 
         var vertIdx = 0
         val pi = Math.PI.toFloat()
@@ -117,20 +117,20 @@ object MeshRaycaster {
 
         for (r in 0 until rings) {
             for (s in 0 until sectors) {
-                val first = (r * (sectors + 1) + s).toShort()
-                val second = (first + sectors + 1).toShort()
+                val first = (r * (sectors + 1) + s)
+                val second = (first + sectors + 1)
 
                 indicesList.add(first)
                 indicesList.add(second)
-                indicesList.add((first + 1).toShort())
+                indicesList.add(first + 1)
 
                 indicesList.add(second)
-                indicesList.add((second + 1).toShort())
-                indicesList.add((first + 1).toShort())
+                indicesList.add(second + 1)
+                indicesList.add(first + 1)
             }
         }
 
-        val indices = ShortArray(indicesList.size) { indicesList[it] }
+        val indices = IntArray(indicesList.size) { indicesList[it] }
         return MeshGeometry(
             vertexPositions = positions,
             indices = indices,
@@ -166,9 +166,9 @@ object MeshRaycaster {
         val dirZ = ray.direction[2]
 
         for (t in 0 until triangleCount) {
-            val i0 = (indices[t * 3].toInt() and 0xFFFF)
-            val i1 = (indices[t * 3 + 1].toInt() and 0xFFFF)
-            val i2 = (indices[t * 3 + 2].toInt() and 0xFFFF)
+            val i0 = indices[t * 3]
+            val i1 = indices[t * 3 + 1]
+            val i2 = indices[t * 3 + 2]
 
             val v0x = positions[i0 * 3]
             val v0y = positions[i0 * 3 + 1]

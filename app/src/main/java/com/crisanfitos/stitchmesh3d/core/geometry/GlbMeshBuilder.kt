@@ -45,7 +45,7 @@ object GlbMeshBuilder {
 
         // Si es modo alambre (wireframe), descomponer triángulos en aristas (glTF LINES: 2 vértices por segmento)
         val indicesList = if (isWireframe && mesh.indices.isNotEmpty()) {
-            val lineIndices = ShortArray(mesh.indices.size * 2)
+            val lineIndices = IntArray(mesh.indices.size * 2)
             var outIdx = 0
             for (i in 0 until (mesh.indices.size / 3)) {
                 val a = mesh.indices[i * 3]
@@ -63,6 +63,12 @@ object GlbMeshBuilder {
             mesh.indices
         }
         val indexCount = indicesList.size
+
+        // Soporte dinámico glTF 2.0 para mallas de alta densidad (> 65.535 vértices):
+        // 5123 = UNSIGNED_SHORT (2 bytes), 5125 = UNSIGNED_INT (4 bytes)
+        val use32BitIndices = vertexCount > 65535 || indicesList.any { it > 65535 }
+        val indexComponentType = if (use32BitIndices) 5125 else 5123
+        val indexBytesPerElement = if (use32BitIndices) 4 else 2
 
         // Calcular límites de bounding box para el accessor POSITION
         var minX = Float.MAX_VALUE
@@ -92,7 +98,7 @@ object GlbMeshBuilder {
 
         // Longitudes de datos binarios base
         val posByteLength = vertexCount * 3 * 4
-        val rawIndByteLength = indexCount * 2
+        val rawIndByteLength = indexCount * indexBytesPerElement
         val indPadding = if (rawIndByteLength % 4 != 0) 4 - (rawIndByteLength % 4) else 0
         val indByteLength = rawIndByteLength + indPadding
 
@@ -179,7 +185,7 @@ object GlbMeshBuilder {
     {
       "bufferView": 1,
       "byteOffset": 0,
-      "componentType": 5123,
+      "componentType": $indexComponentType,
       "count": $indexCount,
       "type": "SCALAR"
     }
@@ -322,7 +328,7 @@ object GlbMeshBuilder {
     {
       "bufferView": 4,
       "byteOffset": 0,
-      "componentType": 5123,
+      "componentType": $indexComponentType,
       "count": $indexCount,
       "type": "SCALAR"
     }
@@ -478,7 +484,7 @@ object GlbMeshBuilder {
     {
       "bufferView": 3,
       "byteOffset": 0,
-      "componentType": 5123,
+      "componentType": $indexComponentType,
       "count": $indexCount,
       "type": "SCALAR"
     }
@@ -602,7 +608,7 @@ object GlbMeshBuilder {
     {
       "bufferView": 3,
       "byteOffset": 0,
-      "componentType": 5123,
+      "componentType": $indexComponentType,
       "count": $indexCount,
       "type": "SCALAR"
     }
@@ -711,7 +717,7 @@ object GlbMeshBuilder {
     {
       "bufferView": 2,
       "byteOffset": 0,
-      "componentType": 5123,
+      "componentType": $indexComponentType,
       "count": $indexCount,
       "type": "SCALAR"
     }
@@ -804,9 +810,15 @@ object GlbMeshBuilder {
             }
         }
 
-        // Payload binario: INDICES (Unsigned Short)
-        for (i in 0 until indexCount) {
-            byteBuffer.putShort(indicesList[i])
+        // Payload binario: INDICES (UNSIGNED_SHORT o UNSIGNED_INT según use32BitIndices)
+        if (use32BitIndices) {
+            for (i in 0 until indexCount) {
+                byteBuffer.putInt(indicesList[i])
+            }
+        } else {
+            for (i in 0 until indexCount) {
+                byteBuffer.putShort((indicesList[i] and 0xFFFF).toShort())
+            }
         }
 
         // Rellenar padding binario de índices con ceros (0x00)

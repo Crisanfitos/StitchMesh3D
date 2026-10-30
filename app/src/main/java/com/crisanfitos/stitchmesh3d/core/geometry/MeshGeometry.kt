@@ -5,19 +5,40 @@ package com.crisanfitos.stitchmesh3d.core.geometry
  *
  * Compatible con Filament / Sceneview / OpenGL ES:
  * @property vertexPositions Búfer continuo de coordenadas de vértices [X, Y, Z, X, Y, Z, ...] en FloatArray.
- * @property indices Búfer indexado de triángulos [i0, i1, i2, ...] en ShortArray.
+ * @property indices Búfer indexado de triángulos [i0, i1, i2, ...] en IntArray (índices sin signo de 32 bits).
  * @property vertexCount Cantidad total de vértices en la malla.
  * @property triangleCount Cantidad total de triángulos (indices.size / 3).
  */
 data class MeshGeometry(
     val vertexPositions: FloatArray,
-    val indices: ShortArray,
+    val indices: IntArray,
     val vertexCount: Int,
     val triangleCount: Int,
     val vertexNormals: FloatArray = FloatArray(vertexPositions.size),
     val vertexColors: FloatArray = FloatArray(0),
     val vertexUvs: FloatArray = FloatArray(0)
 ) {
+    /**
+     * Constructor de interoperabilidad y retrocompatibilidad para fuentes de datos con ShortArray.
+     * Convierte cada índice a Int sin extensión de signo negativa (& 0xFFFF).
+     */
+    constructor(
+        vertexPositions: FloatArray,
+        indices: ShortArray,
+        vertexCount: Int,
+        triangleCount: Int,
+        vertexNormals: FloatArray = FloatArray(vertexPositions.size),
+        vertexColors: FloatArray = FloatArray(0),
+        vertexUvs: FloatArray = FloatArray(0)
+    ) : this(
+        vertexPositions = vertexPositions,
+        indices = IntArray(indices.size) { indices[it].toInt() and 0xFFFF },
+        vertexCount = vertexCount,
+        triangleCount = triangleCount,
+        vertexNormals = vertexNormals,
+        vertexColors = vertexColors,
+        vertexUvs = vertexUvs
+    )
     /**
      * Retorna las coordenadas [X, Y, Z] del vértice en milímetros.
      */
@@ -78,14 +99,29 @@ data class MeshGeometry(
     }
 
     /**
-     * Genera un [java.nio.ShortBuffer] directo en memoria nativa con orden de bytes del sistema
-     * para el búfer de índices de Filament IndexBuffer.
+     * Genera un [java.nio.IntBuffer] directo en memoria nativa con orden de bytes del sistema
+     * para el búfer de índices de Filament IndexBuffer (IndexType.UINT).
      */
-    fun toDirectIndexBuffer(): java.nio.ShortBuffer {
+    fun toDirectIndexBuffer(): java.nio.IntBuffer {
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(indices.size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+        val intBuffer = byteBuffer.asIntBuffer()
+        intBuffer.put(indices)
+        intBuffer.flip()
+        return intBuffer
+    }
+
+    /**
+     * Genera un [java.nio.ShortBuffer] directo en memoria nativa con orden de bytes del sistema
+     * para GPU pipelines que requieran IndexType.USHORT (<= 65.535 vértices).
+     */
+    fun toDirectShortIndexBuffer(): java.nio.ShortBuffer {
         val byteBuffer = java.nio.ByteBuffer.allocateDirect(indices.size * 2)
             .order(java.nio.ByteOrder.nativeOrder())
         val shortBuffer = byteBuffer.asShortBuffer()
-        shortBuffer.put(indices)
+        for (idx in indices) {
+            shortBuffer.put((idx and 0xFFFF).toShort())
+        }
         shortBuffer.flip()
         return shortBuffer
     }
