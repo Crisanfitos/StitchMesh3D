@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import com.crisanfitos.stitchmesh3d.data.local.entity.PatternRoundEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -14,10 +15,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 abstract class PatternRoundDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     abstract suspend fun insertRound(round: PatternRoundEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     abstract suspend fun insertRounds(rounds: List<PatternRoundEntity>)
 
     @Query("DELETE FROM pattern_rounds WHERE id = :id")
