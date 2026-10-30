@@ -45,7 +45,7 @@ object StuffingInflationFilter {
      */
     fun applyInflation(
         mesh: MeshGeometry,
-        topologyType: PartTopologyType,
+        topologyType: PartTopologyType = PartTopologyType.CLOSED_FILLED,
         config: StuffingInflationConfig = StuffingInflationConfig()
     ): MeshGeometry {
         // Piezas planas no llevan relleno de algodón; mallas vacías o degeneradas se retornan intactas.
@@ -259,14 +259,14 @@ object StuffingInflationFilter {
     /**
      * Construye una lista de vecindad para cada vértice a partir del búfer de índices.
      */
-    private fun buildAdjacencyList(indices: ShortArray, vertexCount: Int): Array<IntArray> {
+    private fun buildAdjacencyList(indices: IntArray, vertexCount: Int): Array<IntArray> {
         val sets = Array(vertexCount) { HashSet<Int>(6) }
         val triangleCount = indices.size / 3
 
         for (t in 0 until triangleCount) {
-            val i0 = indices[t * 3].toInt() and 0xFFFF
-            val i1 = indices[t * 3 + 1].toInt() and 0xFFFF
-            val i2 = indices[t * 3 + 2].toInt() and 0xFFFF
+            val i0 = indices[t * 3]
+            val i1 = indices[t * 3 + 1]
+            val i2 = indices[t * 3 + 2]
 
             if (i0 < vertexCount && i1 < vertexCount && i2 < vertexCount) {
                 sets[i0].add(i1)
@@ -286,16 +286,16 @@ object StuffingInflationFilter {
      */
     private fun computeSmoothNormals(
         positions: FloatArray,
-        indices: ShortArray,
+        indices: IntArray,
         vertexCount: Int
     ): FloatArray {
         val normalAccum = FloatArray(vertexCount * 3)
         val triangleCount = indices.size / 3
 
         for (t in 0 until triangleCount) {
-            val i0 = indices[t * 3].toInt() and 0xFFFF
-            val i1 = indices[t * 3 + 1].toInt() and 0xFFFF
-            val i2 = indices[t * 3 + 2].toInt() and 0xFFFF
+            val i0 = indices[t * 3]
+            val i1 = indices[t * 3 + 1]
+            val i2 = indices[t * 3 + 2]
 
             if (i0 >= vertexCount || i1 >= vertexCount || i2 >= vertexCount) continue
 

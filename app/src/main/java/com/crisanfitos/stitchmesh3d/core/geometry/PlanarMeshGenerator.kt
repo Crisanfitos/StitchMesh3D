@@ -44,7 +44,7 @@ object PlanarMeshGenerator {
         if (validRounds.isEmpty()) {
             return MeshGeometry(
                 vertexPositions = FloatArray(0),
-                indices = ShortArray(0),
+                indices = IntArray(0),
                 vertexCount = 0,
                 triangleCount = 0,
                 vertexNormals = FloatArray(0),
@@ -94,7 +94,7 @@ object PlanarMeshGenerator {
         val normals = ArrayList<Float>()
         val colors = ArrayList<Float>()
         val uvs = ArrayList<Float>()
-        val indices = ArrayList<Short>()
+        val indices = ArrayList<Int>()
 
         // 1. Calcular alturas Y de cada hilera
         val rowHeights = validRows.map { row ->
@@ -110,8 +110,8 @@ object PlanarMeshGenerator {
             nx: Float, ny: Float, nz: Float,
             colorRgba: FloatArray,
             u: Float = 0f, v: Float = 0f
-        ): Short {
-            val idx = (positions.size / 3).toShort()
+        ): Int {
+            val idx = positions.size / 3
             positions.add(x)
             positions.add(y)
             positions.add(z)
@@ -128,7 +128,7 @@ object PlanarMeshGenerator {
         }
 
         // Helper para agregar un quad triangulado (v00 -> v10 -> v11 -> v01)
-        fun addQuad(v00: Short, v10: Short, v11: Short, v01: Short) {
+        fun addQuad(v00: Int, v10: Int, v11: Int, v01: Int) {
             // Triángulo 1
             indices.add(v00)
             indices.add(v10)
@@ -244,7 +244,7 @@ object PlanarMeshGenerator {
         val normals = ArrayList<Float>()
         val colors = ArrayList<Float>()
         val uvs = ArrayList<Float>()
-        val indices = ArrayList<Short>()
+        val indices = ArrayList<Int>()
 
         // Helper para radio con modulación cuadrada (superelipse redondeada)
         fun radiusFactor(theta: Double): Float {
@@ -261,8 +261,8 @@ object PlanarMeshGenerator {
             nx: Float, ny: Float, nz: Float,
             colorRgba: FloatArray,
             u: Float = 0f, v: Float = 0f
-        ): Short {
-            val idx = (positions.size / 3).toShort()
+        ): Int {
+            val idx = positions.size / 3
             positions.add(x)
             positions.add(y)
             positions.add(z)
@@ -278,7 +278,7 @@ object PlanarMeshGenerator {
             return idx
         }
 
-        fun addQuad(v00: Short, v10: Short, v11: Short, v01: Short) {
+        fun addQuad(v00: Int, v10: Int, v11: Int, v01: Int) {
             indices.add(v00)
             indices.add(v10)
             indices.add(v11)
@@ -387,7 +387,7 @@ object PlanarMeshGenerator {
 
     private fun emptyMesh(): MeshGeometry = MeshGeometry(
         vertexPositions = FloatArray(0),
-        indices = ShortArray(0),
+        indices = IntArray(0),
         vertexCount = 0,
         triangleCount = 0,
         vertexNormals = FloatArray(0),
@@ -400,13 +400,13 @@ object PlanarMeshGenerator {
         normals: List<Float>,
         colors: List<Float>,
         uvs: List<Float>,
-        indices: List<Short>
+        indices: List<Int>
     ): MeshGeometry {
         val posArray = FloatArray(positions.size) { positions[it] }
         val normArray = FloatArray(normals.size) { normals[it] }
         val colArray = FloatArray(colors.size) { colors[it] }
         val uvArray = FloatArray(uvs.size) { uvs[it] }
-        val idxArray = ShortArray(indices.size) { indices[it] }
+        val idxArray = IntArray(indices.size) { indices[it] }
 
         return MeshGeometry(
             vertexPositions = posArray,

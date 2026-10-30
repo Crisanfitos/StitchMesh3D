@@ -88,6 +88,7 @@ fun WorkspaceScreen(
         onApplySuggestion = { id, sug -> viewModel.processIntent(WorkspaceIntent.ApplySuggestion(id, sug)) },
         newlyCreatedRoundId = state.newlyCreatedRoundId,
         onConsumeFocus = { viewModel.processIntent(WorkspaceIntent.ConsumeInitialFocus) },
+        meshGeometry = state.meshGeometry,
         modifier = modifier
     )
 

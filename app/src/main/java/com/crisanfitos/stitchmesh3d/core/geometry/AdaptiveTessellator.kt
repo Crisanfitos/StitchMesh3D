@@ -36,7 +36,7 @@ object AdaptiveTessellator {
         if (validRings.isEmpty()) {
             return MeshGeometry(
                 vertexPositions = FloatArray(0),
-                indices = ShortArray(0),
+                indices = IntArray(0),
                 vertexCount = 0,
                 triangleCount = 0,
                 vertexNormals = FloatArray(0),
@@ -50,8 +50,8 @@ object AdaptiveTessellator {
         // Asignación de índices: cada puntada no-BLO usa un único vértice (in == out).
         // Las puntadas con TopologyFlag.BLO duplican su vértice: inIndex para la cara inferior, outIndex para la superior.
         var currentOffset = 0
-        val inIndices = Array(validRings.size) { ShortArray(validRings[it].vertexCount) }
-        val outIndices = Array(validRings.size) { ShortArray(validRings[it].vertexCount) }
+        val inIndices = Array(validRings.size) { IntArray(validRings[it].vertexCount) }
+        val outIndices = Array(validRings.size) { IntArray(validRings[it].vertexCount) }
 
         val positionsList = ArrayList<Float>()
         val colorsList = ArrayList<Float>()
@@ -90,7 +90,7 @@ object AdaptiveTessellator {
                 val v = ring.vertices[j]
                 val isBlo = v.stitchType.topologyFlags.contains(TopologyFlag.BLO)
 
-                val inIdx = currentOffset.toShort()
+                val inIdx = currentOffset
                 inIndices[r][j] = inIdx
                 positionsList.add(v.x.toFloat())
                 positionsList.add(v.y.toFloat())
@@ -120,7 +120,7 @@ object AdaptiveTessellator {
                 val hasColorChange = nextRing != null && nextColor != vColor
 
                 if (isBlo || hasColorChange) {
-                    val outIdx = currentOffset.toShort()
+                    val outIdx = currentOffset
                     outIndices[r][j] = outIdx
                     // Vértice duplicado en la misma posición espacial exacta para preservar contigüidad
                     positionsList.add(v.x.toFloat())
@@ -161,7 +161,7 @@ object AdaptiveTessellator {
         val uvs = FloatArray(uvsList.size) { uvsList[it] }
 
         // 3. Generación del búfer de índices triangulados
-        val indexList = ArrayList<Short>()
+        val indexList = ArrayList<Int>()
 
         // 3a. Casquete polar (Triangle Fan para cerrar el fondo del Anillo Mágico)
         if (hasPole && validRings.isNotEmpty()) {
@@ -170,7 +170,7 @@ object AdaptiveTessellator {
             for (j in 0 until n) {
                 val nextJ = (j + 1) % n
                 // Winding order CCW para normal orientada hacia el exterior del fondo
-                indexList.add(0.toShort())
+                indexList.add(0)
                 indexList.add(r0In[nextJ])
                 indexList.add(r0In[j])
             }
@@ -186,7 +186,7 @@ object AdaptiveTessellator {
             tessellateRingPair(ring0, ring1, r0Out, r1In, indexList)
         }
 
-        val indicesArray = ShortArray(indexList.size) { indexList[it] }
+        val indicesArray = IntArray(indexList.size) { indexList[it] }
         val triangleCount = indicesArray.size / 3
 
         // 4. Cálculo ponderado de normales por área de caras adyacentes y suavizado analítico de revolución (RF-3.2)
@@ -219,20 +219,20 @@ object AdaptiveTessellator {
      */
     private fun calculateSmoothAndAreaWeightedNormals(
         positions: FloatArray,
-        indices: ShortArray,
+        indices: IntArray,
         vertexCount: Int,
         triangleCount: Int,
         validRings: List<RingProfile>,
         hasPole: Boolean,
-        inIndices: Array<ShortArray>,
-        outIndices: Array<ShortArray>
+        inIndices: Array<IntArray>,
+        outIndices: Array<IntArray>
     ): FloatArray {
         val faceNormalAccum = FloatArray(vertexCount * 3)
 
         for (t in 0 until triangleCount) {
-            val i0 = (indices[t * 3].toInt() and 0xFFFF)
-            val i1 = (indices[t * 3 + 1].toInt() and 0xFFFF)
-            val i2 = (indices[t * 3 + 2].toInt() and 0xFFFF)
+            val i0 = indices[t * 3]
+            val i1 = indices[t * 3 + 1]
+            val i2 = indices[t * 3 + 2]
 
             val v0x = positions[i0 * 3]
             val v0y = positions[i0 * 3 + 1]
@@ -307,8 +307,8 @@ object AdaptiveTessellator {
                 val revNy = profCos * sinT
                 val revNz = profSin
 
-                val inIdx = inIndices[r][j].toInt()
-                val outIdx = outIndices[r][j].toInt()
+                val inIdx = inIndices[r][j]
+                val outIdx = outIndices[r][j]
                 val isBlo = v.stitchType.topologyFlags.contains(TopologyFlag.BLO)
 
                 // Extraer normal acumulada de caras para inIdx
@@ -401,9 +401,9 @@ object AdaptiveTessellator {
     private fun tessellateRingPair(
         ring0: RingProfile,
         ring1: RingProfile,
-        ring0Indices: ShortArray,
-        ring1Indices: ShortArray,
-        outIndices: ArrayList<Short>
+        ring0Indices: IntArray,
+        ring1Indices: IntArray,
+        outIndices: ArrayList<Int>
     ) {
         val n0 = ring0.vertexCount
         val n1 = ring1.vertexCount

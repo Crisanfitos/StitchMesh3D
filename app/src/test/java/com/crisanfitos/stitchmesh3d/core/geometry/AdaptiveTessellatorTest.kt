@@ -40,7 +40,7 @@ class AdaptiveTessellatorTest {
             val i1 = mesh.indices[t * 3 + 1]
             val i2 = mesh.indices[t * 3 + 2]
 
-            assertEquals(0.toShort(), i0)
+            assertEquals(0, i0)
             assertNotEquals(i1, i2)
             assertNotEquals(i0, i1)
         }
