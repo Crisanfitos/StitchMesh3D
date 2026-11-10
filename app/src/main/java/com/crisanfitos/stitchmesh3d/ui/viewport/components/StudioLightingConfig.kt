@@ -204,5 +204,74 @@ data class StudioLightingConfig(
             ),
             defaultRoughness = 0.85f
         )
+
+        /**
+         * Rig de estudio textil fotométricamente calibrado con sombras suaves y contraste PBR (SM-085):
+         * - Key light rasante a 65.000 lux con castShadows = true para relieve de puntos y normalTexture.
+         * - Fill light suave a 18.000 lux para rellenar valles sin quemar hilados claros.
+         * - Rim light cálido a 22.000 lux para activar la dispersión aterciopelada KHR_materials_sheen.
+         * - Table bounce light a 12.000 lux para evitar sombra negra en el plano de apoyo.
+         * - IndirectLight a 12.000 lux difuso balanceado.
+         */
+        val CALIBRATED_TEXTILE = StudioLightingConfig(
+            sunLight = DirectionalLightSpec(
+                name = "KeyGrazingLight",
+                colorR = 1.0f,
+                colorG = 0.98f,
+                colorB = 0.95f,
+                intensityLux = 65_000.0f,
+                dirX = 0.45f,
+                dirY = -0.70f,
+                dirZ = -0.55f,
+                castShadows = true
+            ),
+            fillLight = DirectionalLightSpec(
+                name = "SoftFillLight",
+                colorR = 0.92f,
+                colorG = 0.96f,
+                colorB = 1.0f,
+                intensityLux = 18_000.0f,
+                dirX = -0.65f,
+                dirY = -0.30f,
+                dirZ = -0.68f,
+                castShadows = false
+            ),
+            rimBackLight = DirectionalLightSpec(
+                name = "SheenRimLight",
+                colorR = 1.0f,
+                colorG = 0.95f,
+                colorB = 0.90f,
+                intensityLux = 22_000.0f,
+                dirX = 0.20f,
+                dirY = 0.40f,
+                dirZ = 0.90f,
+                castShadows = false
+            ),
+            bounceLight = DirectionalLightSpec(
+                name = "SoftBounceLight",
+                colorR = 1.0f,
+                colorG = 0.96f,
+                colorB = 0.92f,
+                intensityLux = 12_000.0f,
+                dirX = 0.0f,
+                dirY = 1.0f,
+                dirZ = -0.20f,
+                castShadows = false
+            ),
+            indirectLightIntensityLux = 12_000.0f,
+            sphericalHarmonicsBands = 3,
+            sphericalHarmonicsIrradiance = floatArrayOf(
+                0.92f, 0.91f, 0.90f,
+                0.08f, 0.09f, 0.10f,
+                0.05f, 0.05f, 0.06f,
+                -0.04f, -0.04f, -0.03f,
+                0.02f, 0.02f, 0.02f,
+                0.01f, 0.01f, 0.01f,
+                -0.01f, -0.01f, -0.01f,
+                0.01f, 0.01f, 0.01f,
+                0.02f, 0.02f, 0.01f
+            ),
+            defaultRoughness = 0.85f
+        )
     }
 }
