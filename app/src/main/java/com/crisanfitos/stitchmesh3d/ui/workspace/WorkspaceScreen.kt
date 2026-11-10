@@ -80,6 +80,7 @@ fun WorkspaceScreen(
         onCalibrateTensionClick = onCalibrateTension,
         onAssemblyClick = onNavigateToAssembly,
         onExportClick = { showExportDialog = true },
+        syncStatus = state.syncStatus,
         onPartSelected = { viewModel.processIntent(WorkspaceIntent.SelectPart(it)) },
         onRoundSelected = { viewModel.processIntent(WorkspaceIntent.SelectRound(it)) },
         onRoundColorChanged = { id, hex -> viewModel.processIntent(WorkspaceIntent.ChangeRoundColor(id, hex)) },

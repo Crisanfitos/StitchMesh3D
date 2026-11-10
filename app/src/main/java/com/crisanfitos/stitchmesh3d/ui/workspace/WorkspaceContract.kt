@@ -3,6 +3,7 @@ package com.crisanfitos.stitchmesh3d.ui.workspace
 import com.crisanfitos.stitchmesh3d.core.engine.validator.CorrectionSuggestion
 import com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry
 import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
+import com.crisanfitos.stitchmesh3d.domain.model.SyncStatus
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
 
@@ -128,7 +129,8 @@ data class WorkspaceState(
     val partActionError: String? = null,
     val newlyCreatedRoundId: String? = null,
     val isStuffingSimulationEnabled: Boolean = true,
-    val isVolumetricYarnEnabled: Boolean = true
+    val isVolumetricYarnEnabled: Boolean = true,
+    val syncStatus: SyncStatus = SyncStatus.SYNCED
 )
 
 /**

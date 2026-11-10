@@ -82,6 +82,9 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
 
+    // WorkManager para sincronización en background off-thread con restricciones de red (SM-089)
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
     // Room Local Persistence
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

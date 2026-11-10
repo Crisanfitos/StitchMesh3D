@@ -18,6 +18,7 @@ import com.crisanfitos.stitchmesh3d.domain.model.PatternRound
 import com.crisanfitos.stitchmesh3d.domain.model.Project
 import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
 import com.crisanfitos.stitchmesh3d.domain.repository.ProjectRepository
+import com.crisanfitos.stitchmesh3d.data.sync.SyncEngine
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
 import com.crisanfitos.stitchmesh3d.ui.workspace.components.RoundItemUiModel
 import com.crisanfitos.stitchmesh3d.ui.workspace.keyboard.CrochetTokenFormatter
@@ -51,11 +52,13 @@ import javax.inject.Inject
 @HiltViewModel
 class WorkspaceViewModel @Inject constructor(
     @param:DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher,
-    private val projectRepository: ProjectRepository? = null
+    private val projectRepository: ProjectRepository? = null,
+    private val syncEngine: SyncEngine? = null
 ) : ViewModel() {
 
-    constructor() : this(Dispatchers.Default, null)
-    constructor(projectRepository: ProjectRepository) : this(Dispatchers.Default, projectRepository)
+    constructor() : this(Dispatchers.Default, null, null)
+    constructor(projectRepository: ProjectRepository) : this(Dispatchers.Default, projectRepository, null)
+    constructor(projectRepository: ProjectRepository?, syncEngine: SyncEngine?) : this(Dispatchers.Default, projectRepository, syncEngine)
 
     private val _state = MutableStateFlow(WorkspaceState())
     val state: StateFlow<WorkspaceState> = _state.asStateFlow()
@@ -67,6 +70,15 @@ class WorkspaceViewModel @Inject constructor(
         // Inicializar la geometría con las vueltas predeterminadas y publicar snapshot inicial en el store compartido (SM-075)
         publishCurrentSessionSnapshot()
         recalculateAndRebuildMesh(_state.value.rounds)
+
+        // Observar estado reactivo de sincronización en la nube (SM-089)
+        if (syncEngine != null) {
+            viewModelScope.launch {
+                syncEngine.syncStatus.collect { status ->
+                    _state.update { it.copy(syncStatus = status) }
+                }
+            }
+        }
     }
 
     private fun publishCurrentSessionSnapshot(stateSnapshot: WorkspaceState = _state.value) {
@@ -129,6 +141,7 @@ class WorkspaceViewModel @Inject constructor(
                     parts = partsToPersist
                 )
                 repo.insertOrUpdateProject(projectToSave)
+                syncEngine?.markPendingChanges()
             } catch (_: Throwable) {}
         }
     }
