@@ -223,6 +223,9 @@ class ViewportViewModel @Inject constructor() :
         val r3 = RingProfileGenerator.generateRing(3, stitchesR3, sampleGauge, r2)
         val r4 = RingProfileGenerator.generateRing(4, stitchesR4, sampleGauge, r3)
 
-        return AdaptiveTessellator.tessellate(listOf(r1, r2, r3, r4))
+        return AdaptiveTessellator.tessellate(
+            rings = listOf(r1, r2, r3, r4),
+            decoupledStitchQuads = true
+        )
     }
 }

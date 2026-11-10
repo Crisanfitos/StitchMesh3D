@@ -80,6 +80,20 @@ object CrochetTextureGenerator {
     }
 
     /**
+     * Búfer estático precacheado del mapa de normales en espacio tangente (RGB) para relieve bajo luz rasante.
+     */
+    val defaultNormalMapPng: ByteArray by lazy {
+        generateNormalMapPng(width = DEFAULT_ATLAS_SIZE, height = DEFAULT_ATLAS_SIZE)
+    }
+
+    /**
+     * Búfer estático precacheado del mapa de oclusión/rugosidad/metálico (ORM) para glTF PBR.
+     */
+    val defaultOcclusionRoughnessPng: ByteArray by lazy {
+        generateOcclusionRoughnessPng(width = DEFAULT_ATLAS_SIZE, height = DEFAULT_ATLAS_SIZE)
+    }
+
+    /**
      * Alias de compatibilidad hacia el atlas unificado de puntos para `GlbMeshBuilder`.
      */
     val defaultStitchTexturePng: ByteArray
@@ -182,6 +196,112 @@ object CrochetTextureGenerator {
         height: Int = DEFAULT_ATLAS_SIZE
     ): ByteArray {
         val rgba = generateStitchAtlasRgba(width, height)
+        return encodeRgbaToPng(width, height, rgba)
+    }
+
+    /**
+     * Genera los bytes RGBA del mapa de normales en espacio tangente para el atlas 2x2.
+     * Los vectores normales (Nx, Ny, Nz) con Nz > 0 se codifican en RGB:
+     * R = (Nx + 1)/2 * 255, G = (Ny + 1)/2 * 255, B = (Nz + 1)/2 * 255 (SM-084).
+     */
+    fun generateNormalMapRgba(
+        width: Int = DEFAULT_ATLAS_SIZE,
+        height: Int = DEFAULT_ATLAS_SIZE
+    ): ByteArray {
+        val rawPixels = ByteArray(width * height * 4)
+        val halfW = (width / 2).coerceAtLeast(1)
+        val halfH = (height / 2).coerceAtLeast(1)
+
+        for (y in 0 until height) {
+            val isBottom = y >= halfH
+            val localY = (if (isBottom) y - halfH else y).toFloat() / halfH.toFloat()
+
+            for (x in 0 until width) {
+                val isRight = x >= halfW
+                val localX = (if (isRight) x - halfW else x).toFloat() / halfW.toFloat()
+
+                val quadrant = when {
+                    !isRight && !isBottom -> StitchAtlasQuadrant.SINGLE_CROCHET
+                    isRight && !isBottom -> StitchAtlasQuadrant.INCREASE
+                    !isRight && isBottom -> StitchAtlasQuadrant.DECREASE
+                    else -> StitchAtlasQuadrant.TALL_POST_AND_CHAIN
+                }
+
+                val normal = evaluateGlyphNormal(quadrant, localX, localY)
+                val pixelOffset = (y * width + x) * 4
+                rawPixels[pixelOffset] = ((normal[0] * 0.5f + 0.5f) * 255f).toInt().coerceIn(0, 255).toByte()
+                rawPixels[pixelOffset + 1] = ((normal[1] * 0.5f + 0.5f) * 255f).toInt().coerceIn(0, 255).toByte()
+                rawPixels[pixelOffset + 2] = ((normal[2] * 0.5f + 0.5f) * 255f).toInt().coerceIn(0, 255).toByte()
+                rawPixels[pixelOffset + 3] = 255.toByte()
+            }
+        }
+        return rawPixels
+    }
+
+    /**
+     * Genera el archivo binario PNG del mapa de normales en espacio tangente (SM-084).
+     */
+    fun generateNormalMapPng(
+        width: Int = DEFAULT_ATLAS_SIZE,
+        height: Int = DEFAULT_ATLAS_SIZE
+    ): ByteArray {
+        val rgba = generateNormalMapRgba(width, height)
+        return encodeRgbaToPng(width, height, rgba)
+    }
+
+    /**
+     * Genera los bytes RGBA del mapa compuesto de oclusión, rugosidad y metálico (ORM) conforme a glTF 2.0 PBR:
+     * - Canal R: Oclusión ambiental (0.45..1.0)
+     * - Canal G: Rugosidad textil mate (0.85..0.95)
+     * - Canal B: Metálico (0.0 para hilados textiles no metálicos)
+     * - Canal A: 255
+     */
+    fun generateOcclusionRoughnessRgba(
+        width: Int = DEFAULT_ATLAS_SIZE,
+        height: Int = DEFAULT_ATLAS_SIZE
+    ): ByteArray {
+        val rawPixels = ByteArray(width * height * 4)
+        val halfW = (width / 2).coerceAtLeast(1)
+        val halfH = (height / 2).coerceAtLeast(1)
+
+        for (y in 0 until height) {
+            val isBottom = y >= halfH
+            val localY = (if (isBottom) y - halfH else y).toFloat() / halfH.toFloat()
+
+            for (x in 0 until width) {
+                val isRight = x >= halfW
+                val localX = (if (isRight) x - halfW else x).toFloat() / halfW.toFloat()
+
+                val quadrant = when {
+                    !isRight && !isBottom -> StitchAtlasQuadrant.SINGLE_CROCHET
+                    isRight && !isBottom -> StitchAtlasQuadrant.INCREASE
+                    !isRight && isBottom -> StitchAtlasQuadrant.DECREASE
+                    else -> StitchAtlasQuadrant.TALL_POST_AND_CHAIN
+                }
+
+                val intensity = evaluateGlyphIntensity(quadrant, localX, localY)
+                val pixelOffset = (y * width + x) * 4
+                // R: Oclusión ambiental
+                rawPixels[pixelOffset] = (intensity * 255f).toInt().coerceIn(0, 255).toByte()
+                // G: Rugosidad textil (0.88 para hebras, 0.96 en surcos)
+                val roughness = 0.96f - 0.08f * intensity
+                rawPixels[pixelOffset + 1] = (roughness * 255f).toInt().coerceIn(0, 255).toByte()
+                // B: Metálico (0.0)
+                rawPixels[pixelOffset + 2] = 0.toByte()
+                rawPixels[pixelOffset + 3] = 255.toByte()
+            }
+        }
+        return rawPixels
+    }
+
+    /**
+     * Genera el archivo binario PNG del mapa compuesto ORM para glTF 2.0 PBR (SM-084).
+     */
+    fun generateOcclusionRoughnessPng(
+        width: Int = DEFAULT_ATLAS_SIZE,
+        height: Int = DEFAULT_ATLAS_SIZE
+    ): ByteArray {
+        val rgba = generateOcclusionRoughnessRgba(width, height)
         return encodeRgbaToPng(width, height, rgba)
     }
 
@@ -290,6 +410,44 @@ object CrochetTextureGenerator {
         }
 
         return intensity.coerceIn(0.35f, 1.0f)
+    }
+
+    /**
+     * Evalúa el vector normal unitario en espacio tangente [Nx, Ny, Nz] para una coordenada local `(nx, ny)`
+     * a partir del relieve y gradiente morfológico de las hebras del glifo (SM-084).
+     * Garantiza magnitud unitaria ||n|| = 1.0 y Nz > 0.
+     */
+    fun evaluateGlyphNormal(
+        quadrant: StitchAtlasQuadrant,
+        nx: Float,
+        ny: Float
+    ): FloatArray {
+        val delta = 0.008f
+        val lumL = evaluateGlyphIntensity(quadrant, (nx - delta).coerceIn(0f, 1f), ny)
+        val lumR = evaluateGlyphIntensity(quadrant, (nx + delta).coerceIn(0f, 1f), ny)
+        val lumD = evaluateGlyphIntensity(quadrant, nx, (ny - delta).coerceIn(0f, 1f))
+        val lumU = evaluateGlyphIntensity(quadrant, nx, (ny + delta).coerceIn(0f, 1f))
+
+        val dLdx = (lumR - lumL) / (2f * delta)
+        val dLdy = (lumU - lumD) / (2f * delta)
+
+        val bumpScale = 0.75f
+        var tx = -dLdx * bumpScale
+        var ty = -dLdy * bumpScale
+        var tz = 1.0f
+
+        val len = sqrt(tx * tx + ty * ty + tz * tz)
+        if (len > 1e-6f) {
+            tx /= len
+            ty /= len
+            tz /= len
+        } else {
+            tx = 0f
+            ty = 0f
+            tz = 1f
+        }
+
+        return floatArrayOf(tx, ty, tz)
     }
 
     /**

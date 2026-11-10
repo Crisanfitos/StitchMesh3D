@@ -306,4 +306,82 @@ class AdaptiveTessellatorTest {
             assertEquals("Normal unitaria", 1.0f, thickMesh.getNormalMagnitude(v), 0.001f)
         }
     }
+
+    @Test
+    fun `tessellate with decoupledStitchQuads assigns strictly confined UVs without diagonal bleed (SM-084)`() {
+        val mixedStitches = listOf(
+            StitchType.SingleCrochet,
+            StitchType.Increase,
+            StitchType.Decrease,
+            StitchType.DoubleCrochet
+        )
+        val ring1 = RingProfileGenerator.generateRing(1, mixedStitches, standard)
+        val ring2 = RingProfileGenerator.generateRing(2, List(5) { StitchType.SingleCrochet }, standard, ring1)
+
+        val mesh = AdaptiveTessellator.tessellate(
+            rings = listOf(ring1, ring2),
+            includePolarCap = false,
+            decoupledStitchQuads = true
+        )
+
+        assertTrue(mesh.vertexCount > 0)
+        assertTrue(mesh.triangleCount > 0)
+        assertEquals("Debe tener búfer de tangentes completo (4 floats por vértice)", mesh.vertexCount * 4, mesh.vertexTangents.size)
+
+        // Verificar tangentes unitarias y W = 1.0f
+        for (v in 0 until mesh.vertexCount) {
+            val tan = mesh.getVertexTangent(v)
+            val len = kotlin.math.sqrt(tan[0] * tan[0] + tan[1] * tan[1] + tan[2] * tan[2])
+            assertEquals("Tangente unitaria", 1.0f, len, 0.01f)
+            assertEquals("Handedness W = 1.0f", 1.0f, tan[3], 1e-4f)
+        }
+    }
+
+    @Test
+    fun `tessellate with decoupledStitchQuads ensures localV monotonically advances from bottom to top on all rounds (SM-084)`() {
+        val r1 = RingProfileGenerator.generateRing(1, List(6) { StitchType.SingleCrochet }, standard)
+        val r2 = RingProfileGenerator.generateRing(2, List(6) { StitchType.SingleCrochet }, standard, r1)
+        val r3 = RingProfileGenerator.generateRing(3, List(6) { StitchType.SingleCrochet }, standard, r2)
+
+        val mesh = AdaptiveTessellator.tessellate(
+            rings = listOf(r1, r2, r3),
+            includePolarCap = false,
+            decoupledStitchQuads = true
+        )
+
+        // En modo desacoplado, cada quad tiene 4 vértices (BL=0, BR=1, TR=2, TL=3)
+        // BL y BR tienen localV = 0.0f; TR y TL tienen localV = 1.0f dentro de su cuadrante
+        val singleQuadVerts = 4
+        val quadCount = mesh.vertexCount / singleQuadVerts
+        for (q in 0 until quadCount) {
+            val baseV = q * singleQuadVerts
+            val vBottomLeft = mesh.vertexUvs[baseV * 2 + 1]
+            val vTopLeft = mesh.vertexUvs[(baseV + 3) * 2 + 1]
+            assertTrue("localV en la parte superior ($vTopLeft) debe ser mayor que en la base ($vBottomLeft) (nunca invertido)", vTopLeft > vBottomLeft)
+        }
+    }
+
+    @Test
+    fun `tessellate with decoupledStitchQuads and odd stitch counts produces non-degenerate quads without seam collapse (SM-084)`() {
+        // 7 puntos (número impar susceptible a ping-pong colapsado)
+        val r1 = RingProfileGenerator.generateRing(1, List(7) { StitchType.SingleCrochet }, standard)
+        val r2 = RingProfileGenerator.generateRing(2, List(7) { StitchType.SingleCrochet }, standard, r1)
+
+        val mesh = AdaptiveTessellator.tessellate(
+            rings = listOf(r1, r2),
+            includePolarCap = false,
+            decoupledStitchQuads = true
+        )
+
+        // 7 quads * 4 vértices = 28 vértices
+        assertEquals(28, mesh.vertexCount)
+        assertEquals(14, mesh.triangleCount)
+
+        for (q in 0 until 7) {
+            val baseV = q * 4
+            val uLeft = mesh.vertexUvs[baseV * 2]
+            val uRight = mesh.vertexUvs[(baseV + 1) * 2]
+            assertTrue("localU debe crecer de izquierda a derecha (uRight > uLeft): $uRight vs $uLeft", uRight > uLeft)
+        }
+    }
 }

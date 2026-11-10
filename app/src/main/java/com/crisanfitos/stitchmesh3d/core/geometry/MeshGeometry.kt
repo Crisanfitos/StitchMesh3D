@@ -16,7 +16,8 @@ data class MeshGeometry(
     val triangleCount: Int,
     val vertexNormals: FloatArray = FloatArray(vertexPositions.size),
     val vertexColors: FloatArray = FloatArray(0),
-    val vertexUvs: FloatArray = FloatArray(0)
+    val vertexUvs: FloatArray = FloatArray(0),
+    val vertexTangents: FloatArray = FloatArray(0)
 ) {
     /**
      * Constructor de interoperabilidad y retrocompatibilidad para fuentes de datos con ShortArray.
@@ -29,7 +30,8 @@ data class MeshGeometry(
         triangleCount: Int,
         vertexNormals: FloatArray = FloatArray(vertexPositions.size),
         vertexColors: FloatArray = FloatArray(0),
-        vertexUvs: FloatArray = FloatArray(0)
+        vertexUvs: FloatArray = FloatArray(0),
+        vertexTangents: FloatArray = FloatArray(0)
     ) : this(
         vertexPositions = vertexPositions,
         indices = IntArray(indices.size) { indices[it].toInt() and 0xFFFF },
@@ -37,7 +39,8 @@ data class MeshGeometry(
         triangleCount = triangleCount,
         vertexNormals = vertexNormals,
         vertexColors = vertexColors,
-        vertexUvs = vertexUvs
+        vertexUvs = vertexUvs,
+        vertexTangents = vertexTangents
     )
     /**
      * Retorna las coordenadas [X, Y, Z] del vértice en milímetros.
@@ -170,6 +173,35 @@ data class MeshGeometry(
     }
 
     /**
+     * Retorna el vector tangente en espacio de vértice [Tx, Ty, Tz, W] conforme a glTF 2.0 (VEC4).
+     */
+    fun getVertexTangent(index: Int): FloatArray {
+        require(index in 0 until vertexCount) { "Índice de vértice fuera de rango: $index (total: $vertexCount)" }
+        if (vertexTangents.isEmpty() || (index * 4 + 3) >= vertexTangents.size) {
+            return floatArrayOf(1f, 0f, 0f, 1f)
+        }
+        return floatArrayOf(
+            vertexTangents[index * 4],
+            vertexTangents[index * 4 + 1],
+            vertexTangents[index * 4 + 2],
+            vertexTangents[index * 4 + 3]
+        )
+    }
+
+    /**
+     * Genera un [java.nio.FloatBuffer] directo en memoria nativa con orden de bytes del sistema
+     * conteniendo los vectores tangentes [Tx, Ty, Tz, W] por vértice para Filament TANGENT.
+     */
+    fun toDirectTangentBuffer(): java.nio.FloatBuffer {
+        val byteBuffer = java.nio.ByteBuffer.allocateDirect(vertexTangents.size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+        val floatBuffer = byteBuffer.asFloatBuffer()
+        floatBuffer.put(vertexTangents)
+        floatBuffer.flip()
+        return floatBuffer
+    }
+
+    /**
      * Genera un [java.nio.FloatBuffer] directo en memoria nativa con orden de bytes del sistema
      * conteniendo los pares [U, V] por vértice para Filament TEXCOORD_0.
      */
@@ -231,6 +263,7 @@ data class MeshGeometry(
         if (!vertexNormals.contentEquals(other.vertexNormals)) return false
         if (!vertexColors.contentEquals(other.vertexColors)) return false
         if (!vertexUvs.contentEquals(other.vertexUvs)) return false
+        if (!vertexTangents.contentEquals(other.vertexTangents)) return false
         if (vertexCount != other.vertexCount) return false
         if (triangleCount != other.triangleCount) return false
 
@@ -243,6 +276,7 @@ data class MeshGeometry(
         result = 31 * result + vertexNormals.contentHashCode()
         result = 31 * result + vertexColors.contentHashCode()
         result = 31 * result + vertexUvs.contentHashCode()
+        result = 31 * result + vertexTangents.contentHashCode()
         result = 31 * result + vertexCount
         result = 31 * result + triangleCount
         return result

@@ -67,7 +67,12 @@ class GlbMeshBuilderTest {
         assertTrue("Debe declarar atributo POSITION", jsonStr.contains("\"POSITION\": 0"))
         assertTrue("Debe declarar atributo NORMAL", jsonStr.contains("\"NORMAL\": 1"))
         assertTrue("Debe declarar atributo TEXCOORD_0", jsonStr.contains("\"TEXCOORD_0\": 2"))
+        assertTrue("Debe declarar atributo TANGENT", jsonStr.contains("\"TANGENT\": 4"))
         assertTrue("Debe declarar textura baseColorTexture", jsonStr.contains("\"baseColorTexture\""))
+        assertTrue("Debe declarar textura normalTexture para relieve PBR", jsonStr.contains("\"normalTexture\""))
+        assertTrue("Debe declarar textura occlusionTexture para micro-sombras textiles", jsonStr.contains("\"occlusionTexture\""))
+        assertTrue("Debe declarar extensión KHR_materials_sheen", jsonStr.contains("KHR_materials_sheen"))
+        assertTrue("Debe declarar factor de brillo sheenColorFactor", jsonStr.contains("sheenColorFactor"))
         assertTrue("Debe declarar sampler con REPEAT (10497)", jsonStr.contains("\"wrapS\": 10497"))
         assertTrue("Debe declarar índices en accessor 3", jsonStr.contains("\"indices\": 3"))
 

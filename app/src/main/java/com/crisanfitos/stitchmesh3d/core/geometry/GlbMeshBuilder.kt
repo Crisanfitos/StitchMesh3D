@@ -39,7 +39,9 @@ object GlbMeshBuilder {
         yarnColor: Color = Color(0xFFE06D53),
         roughness: Float = 0.9f,
         isWireframe: Boolean = false,
-        stitchTexturePng: ByteArray? = null
+        stitchTexturePng: ByteArray? = null,
+        normalTexturePng: ByteArray? = null,
+        occlusionRoughnessPng: ByteArray? = null
     ): ByteBuffer {
         val vertexCount = mesh.vertexCount
 
@@ -110,15 +112,36 @@ object GlbMeshBuilder {
 
         val hasVertexColors = !isWireframe && mesh.vertexColors.isNotEmpty() && mesh.vertexColors.size >= vertexCount * 4
         val hasUvs = !isWireframe && mesh.vertexUvs.isNotEmpty() && mesh.vertexUvs.size >= vertexCount * 2
+        val hasTangents = !isWireframe && mesh.vertexTangents.isNotEmpty() && mesh.vertexTangents.size >= vertexCount * 4
+        val tanByteLength = if (hasTangents) vertexCount * 4 * 4 else 0
 
         val stitchPng = if (hasUvs) {
             stitchTexturePng ?: CrochetTextureGenerator.defaultStitchTexturePng
         } else {
             null
         }
-        val rawImgByteLength = stitchPng?.size ?: 0
-        val imgPadding = if (rawImgByteLength % 4 != 0) 4 - (rawImgByteLength % 4) else 0
-        val imgByteLength = rawImgByteLength + imgPadding
+        val normalPng = if (hasUvs) {
+            normalTexturePng ?: CrochetTextureGenerator.defaultNormalMapPng
+        } else {
+            null
+        }
+        val ormPng = if (hasUvs) {
+            occlusionRoughnessPng ?: CrochetTextureGenerator.defaultOcclusionRoughnessPng
+        } else {
+            null
+        }
+
+        val rawImg0ByteLength = stitchPng?.size ?: 0
+        val img0Padding = if (rawImg0ByteLength % 4 != 0) 4 - (rawImg0ByteLength % 4) else 0
+        val img0ByteLength = rawImg0ByteLength + img0Padding
+
+        val rawImg1ByteLength = normalPng?.size ?: 0
+        val img1Padding = if (rawImg1ByteLength % 4 != 0) 4 - (rawImg1ByteLength % 4) else 0
+        val img1ByteLength = rawImg1ByteLength + img1Padding
+
+        val rawImg2ByteLength = ormPng?.size ?: 0
+        val img2Padding = if (rawImg2ByteLength % 4 != 0) 4 - (rawImg2ByteLength % 4) else 0
+        val img2ByteLength = rawImg2ByteLength + img2Padding
 
         val jsonString: String
         val totalBinLength: Int
@@ -212,7 +235,7 @@ object GlbMeshBuilder {
 }
 """.trim()
         } else if (hasUvs && hasVertexColors) {
-            // SÓLIDO PBR MULTICROMÁTICO CON TEXTURA DE RELIEVE (Jacquard / SM-068 / SM-069)
+            // SÓLIDO PBR MULTICROMÁTICO CON TEXTURA DE RELIEVE, NORMALES Y SHEEN (SM-084)
             val normByteLength = vertexCount * 3 * 4
             val colorByteLength = vertexCount * 4 * 4
             val uvByteLength = vertexCount * 2 * 4
@@ -222,8 +245,15 @@ object GlbMeshBuilder {
             val colorOffset = normOffset + normByteLength
             val uvOffset = colorOffset + colorByteLength
             val indOffset = uvOffset + uvByteLength
-            val imgOffset = indOffset + indByteLength
-            totalBinLength = imgOffset + imgByteLength
+            val tanOffset = indOffset + indByteLength
+            val img0Offset = tanOffset + tanByteLength
+            val img1Offset = img0Offset + img0ByteLength
+            val img2Offset = img1Offset + img1ByteLength
+            totalBinLength = img2Offset + img2ByteLength
+
+            val img0BufferViewIdx = if (hasTangents) 6 else 5
+            val img1BufferViewIdx = img0BufferViewIdx + 1
+            val img2BufferViewIdx = img0BufferViewIdx + 2
 
             jsonString = """
 {
@@ -231,6 +261,9 @@ object GlbMeshBuilder {
     "version": "2.0",
     "generator": "StitchMesh3D Wool PBR Textured Multicolored Generator"
   },
+  "extensionsUsed": [
+    "KHR_materials_sheen"
+  ],
   "scene": 0,
   "scenes": [
     {
@@ -252,15 +285,33 @@ object GlbMeshBuilder {
   ],
   "images": [
     {
-      "bufferView": 5,
+      "bufferView": $img0BufferViewIdx,
       "mimeType": "image/png",
-      "name": "CrochetStitchRelief"
+      "name": "CrochetStitchAlbedo"
+    },
+    {
+      "bufferView": $img1BufferViewIdx,
+      "mimeType": "image/png",
+      "name": "CrochetStitchNormal"
+    },
+    {
+      "bufferView": $img2BufferViewIdx,
+      "mimeType": "image/png",
+      "name": "CrochetStitchOcclusionRoughness"
     }
   ],
   "textures": [
     {
       "sampler": 0,
       "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
     }
   ],
   "materials": [
@@ -271,8 +322,25 @@ object GlbMeshBuilder {
         "baseColorTexture": {
           "index": 0
         },
+        "metallicRoughnessTexture": {
+          "index": 2
+        },
         "roughnessFactor": $roughness,
         "metallicFactor": 0.0
+      },
+      "normalTexture": {
+        "index": 1,
+        "scale": 1.0
+      },
+      "occlusionTexture": {
+        "index": 2,
+        "strength": 1.0
+      },
+      "extensions": {
+        "KHR_materials_sheen": {
+          "sheenColorFactor": [0.85, 0.85, 0.85],
+          "sheenRoughnessFactor": 0.5
+        }
       },
       "doubleSided": true
     }
@@ -285,7 +353,7 @@ object GlbMeshBuilder {
             "POSITION": 0,
             "NORMAL": 1,
             "COLOR_0": 2,
-            "TEXCOORD_0": 3
+            "TEXCOORD_0": 3${if (hasTangents) ",\n            \"TANGENT\": 5" else ""}
           },
           "indices": 4,
           "material": 0,
@@ -331,7 +399,14 @@ object GlbMeshBuilder {
       "componentType": $indexComponentType,
       "count": $indexCount,
       "type": "SCALAR"
-    }
+    }${if (hasTangents) """,
+    {
+      "bufferView": 5,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC4"
+    }""" else ""}
   ],
   "bufferViews": [
     {
@@ -363,11 +438,27 @@ object GlbMeshBuilder {
       "byteOffset": $indOffset,
       "byteLength": $rawIndByteLength,
       "target": 34963
+    }${if (hasTangents) """,
+    {
+      "buffer": 0,
+      "byteOffset": $tanOffset,
+      "byteLength": $tanByteLength,
+      "target": 34962
+    }""" else ""},
+    {
+      "buffer": 0,
+      "byteOffset": $img0Offset,
+      "byteLength": $rawImg0ByteLength
     },
     {
       "buffer": 0,
-      "byteOffset": $imgOffset,
-      "byteLength": $rawImgByteLength
+      "byteOffset": $img1Offset,
+      "byteLength": $rawImg1ByteLength
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $img2Offset,
+      "byteLength": $rawImg2ByteLength
     }
   ],
   "buffers": [
@@ -378,7 +469,7 @@ object GlbMeshBuilder {
 }
 """.trim()
         } else if (hasUvs) {
-            // SÓLIDO PBR MONOCROMÁTICO CON TEXTURA DE RELIEVE (PBR Stitch Relief teñido con yarnColor)
+            // SÓLIDO PBR MONOCROMÁTICO CON TEXTURA DE RELIEVE, NORMALES Y SHEEN (SM-084)
             val normByteLength = vertexCount * 3 * 4
             val uvByteLength = vertexCount * 2 * 4
 
@@ -386,8 +477,15 @@ object GlbMeshBuilder {
             val normOffset = posByteLength
             val uvOffset = normOffset + normByteLength
             val indOffset = uvOffset + uvByteLength
-            val imgOffset = indOffset + indByteLength
-            totalBinLength = imgOffset + imgByteLength
+            val tanOffset = indOffset + indByteLength
+            val img0Offset = tanOffset + tanByteLength
+            val img1Offset = img0Offset + img0ByteLength
+            val img2Offset = img1Offset + img1ByteLength
+            totalBinLength = img2Offset + img2ByteLength
+
+            val img0BufferViewIdx = if (hasTangents) 5 else 4
+            val img1BufferViewIdx = img0BufferViewIdx + 1
+            val img2BufferViewIdx = img0BufferViewIdx + 2
 
             jsonString = """
 {
@@ -395,6 +493,9 @@ object GlbMeshBuilder {
     "version": "2.0",
     "generator": "StitchMesh3D Wool PBR Textured Generator"
   },
+  "extensionsUsed": [
+    "KHR_materials_sheen"
+  ],
   "scene": 0,
   "scenes": [
     {
@@ -416,15 +517,33 @@ object GlbMeshBuilder {
   ],
   "images": [
     {
-      "bufferView": 4,
+      "bufferView": $img0BufferViewIdx,
       "mimeType": "image/png",
-      "name": "CrochetStitchRelief"
+      "name": "CrochetStitchAlbedo"
+    },
+    {
+      "bufferView": $img1BufferViewIdx,
+      "mimeType": "image/png",
+      "name": "CrochetStitchNormal"
+    },
+    {
+      "bufferView": $img2BufferViewIdx,
+      "mimeType": "image/png",
+      "name": "CrochetStitchOcclusionRoughness"
     }
   ],
   "textures": [
     {
       "sampler": 0,
       "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
     }
   ],
   "materials": [
@@ -435,8 +554,25 @@ object GlbMeshBuilder {
         "baseColorTexture": {
           "index": 0
         },
+        "metallicRoughnessTexture": {
+          "index": 2
+        },
         "roughnessFactor": $roughness,
         "metallicFactor": 0.0
+      },
+      "normalTexture": {
+        "index": 1,
+        "scale": 1.0
+      },
+      "occlusionTexture": {
+        "index": 2,
+        "strength": 1.0
+      },
+      "extensions": {
+        "KHR_materials_sheen": {
+          "sheenColorFactor": [0.85, 0.85, 0.85],
+          "sheenRoughnessFactor": 0.5
+        }
       },
       "doubleSided": true
     }
@@ -448,7 +584,7 @@ object GlbMeshBuilder {
           "attributes": {
             "POSITION": 0,
             "NORMAL": 1,
-            "TEXCOORD_0": 2
+            "TEXCOORD_0": 2${if (hasTangents) ",\n            \"TANGENT\": 4" else ""}
           },
           "indices": 3,
           "material": 0,
@@ -487,7 +623,14 @@ object GlbMeshBuilder {
       "componentType": $indexComponentType,
       "count": $indexCount,
       "type": "SCALAR"
-    }
+    }${if (hasTangents) """,
+    {
+      "bufferView": 4,
+      "byteOffset": 0,
+      "componentType": 5126,
+      "count": $vertexCount,
+      "type": "VEC4"
+    }""" else ""}
   ],
   "bufferViews": [
     {
@@ -513,11 +656,27 @@ object GlbMeshBuilder {
       "byteOffset": $indOffset,
       "byteLength": $rawIndByteLength,
       "target": 34963
+    }${if (hasTangents) """,
+    {
+      "buffer": 0,
+      "byteOffset": $tanOffset,
+      "byteLength": $tanByteLength,
+      "target": 34962
+    }""" else ""},
+    {
+      "buffer": 0,
+      "byteOffset": $img0Offset,
+      "byteLength": $rawImg0ByteLength
     },
     {
       "buffer": 0,
-      "byteOffset": $imgOffset,
-      "byteLength": $rawImgByteLength
+      "byteOffset": $img1Offset,
+      "byteLength": $rawImg1ByteLength
+    },
+    {
+      "buffer": 0,
+      "byteOffset": $img2Offset,
+      "byteLength": $rawImg2ByteLength
     }
   ],
   "buffers": [
@@ -826,13 +985,32 @@ object GlbMeshBuilder {
             byteBuffer.put(0x00.toByte())
         }
 
-        if (hasUvs && stitchPng != null) {
-            // Payload binario: Imagen PNG
-            byteBuffer.put(stitchPng)
+        if (hasTangents) {
+            // Payload binario: TANGENTS (Float4: Tx, Ty, Tz, Tw)
+            for (i in 0 until (vertexCount * 4)) {
+                val tanVal = if (i < mesh.vertexTangents.size) mesh.vertexTangents[i] else 0f
+                byteBuffer.putFloat(tanVal)
+            }
+        }
 
-            // Rellenar padding binario de imagen con ceros (0x00)
-            repeat(imgPadding) {
-                byteBuffer.put(0x00.toByte())
+        if (hasUvs) {
+            if (stitchPng != null) {
+                byteBuffer.put(stitchPng)
+                repeat(img0Padding) {
+                    byteBuffer.put(0x00.toByte())
+                }
+            }
+            if (normalPng != null) {
+                byteBuffer.put(normalPng)
+                repeat(img1Padding) {
+                    byteBuffer.put(0x00.toByte())
+                }
+            }
+            if (ormPng != null) {
+                byteBuffer.put(ormPng)
+                repeat(img2Padding) {
+                    byteBuffer.put(0x00.toByte())
+                }
             }
         }
 
