@@ -203,12 +203,12 @@ class AdaptiveTessellatorTest {
             val ny = az * bx - ax * bz
             val nz = ax * by - ay * bx
 
-            // Centroide radial del triángulo
+            // Centroide radial del triángulo en plano XZ (Y-up estándar glTF)
             val cx = (x0 + x1 + x2) / 3f
-            val cy = (y0 + y1 + y2) / 3f
+            val cz = (z0 + z1 + z2) / 3f
 
-            // Producto escalar normal con vector radial hacia afuera: (nx * cx + ny * cy)
-            val radialDot = nx * cx + ny * cy
+            // Producto escalar normal con vector radial hacia afuera: (nx * cx + nz * cz)
+            val radialDot = nx * cx + nz * cz
             assertTrue("La normal del triángulo $t debe apuntar hacia el exterior radial: $radialDot", radialDot > 0f)
         }
     }
@@ -235,17 +235,17 @@ class AdaptiveTessellatorTest {
             assertEquals("Cada normal debe ser unitaria (||n|| ~ 1.0)", 1.0f, mag, 0.01f)
 
             if (v > 0) {
-                // Vértices de anillos: la normal debe apuntar hacia el exterior en el plano XY
+                // Vértices de anillos: la normal debe apuntar hacia el exterior en el plano XZ (Y-up)
                 val pos = mesh.getVertexPosition(v)
                 val norm = mesh.getVertexNormal(v)
-                val radialDot = norm[0] * pos[0] + norm[1] * pos[1]
+                val radialDot = norm[0] * pos[0] + norm[2] * pos[2]
                 assertTrue("La normal del vértice $v debe apuntar hacia el exterior radial: $radialDot", radialDot > 0f)
             } else {
-                // Vértice polar (0): debe apuntar hacia abajo
+                // Vértice polar (0): debe apuntar hacia abajo en eje -Y
                 val norm = mesh.getVertexNormal(0)
                 assertEquals(0f, norm[0], 0.01f)
-                assertEquals(0f, norm[1], 0.01f)
-                assertEquals(-1f, norm[2], 0.01f)
+                assertEquals(-1f, norm[1], 0.01f)
+                assertEquals(0f, norm[2], 0.01f)
             }
         }
     }
@@ -266,17 +266,44 @@ class AdaptiveTessellatorTest {
 
         val mesh = AdaptiveTessellator.tessellate(listOf(ring1), includePolarCap = false)
 
-        assertEquals(4, mesh.vertexCount)
-        assertEquals(8, mesh.vertexUvs.size)
+        // 1 pb (1) + 1 aum (2) + 1 dism (1) + 1 pa (1) = 5 puntos de corona producidos
+        assertEquals(5, mesh.vertexCount)
+        assertEquals(10, mesh.vertexUvs.size)
 
-        for (i in mixedStitches.indices) {
+        val expectedStitches = listOf(
+            StitchType.SingleCrochet,
+            StitchType.Increase,
+            StitchType.Increase,
+            StitchType.Decrease,
+            StitchType.DoubleCrochet
+        )
+
+        for (i in expectedStitches.indices) {
             val u = mesh.vertexUvs[i * 2]
             val v = mesh.vertexUvs[i * 2 + 1]
-            val expectedQuadrant = CrochetTextureGenerator.quadrantForStitch(mixedStitches[i])
+            val expectedQuadrant = CrochetTextureGenerator.quadrantForStitch(expectedStitches[i])
             assertTrue(
-                "El vértice $i (${mixedStitches[i].technicalName}) con UV ($u, $v) debe mapear al cuadrante $expectedQuadrant",
+                "El vértice $i (${expectedStitches[i].technicalName}) con UV ($u, $v) debe mapear al cuadrante $expectedQuadrant",
                 expectedQuadrant.containsUv(u, v)
             )
+        }
+    }
+
+    @Test
+    fun `open tube with wall thickness generates interior shell and top rim lip (SM-083)`() {
+        val r1 = RingProfileGenerator.generateRing(1, List(8) { StitchType.SingleCrochet }, standard)
+        val r2 = RingProfileGenerator.generateRing(2, List(8) { StitchType.SingleCrochet }, standard, r1)
+
+        val thinMesh = AdaptiveTessellator.tessellate(listOf(r1, r2), includePolarCap = false, wallThicknessMm = 0f)
+        val thickMesh = AdaptiveTessellator.tessellate(listOf(r1, r2), includePolarCap = false, wallThicknessMm = 2.0f)
+
+        // La malla con grosor genera vértices adicionales para el labio y la pared interior
+        assertTrue(thickMesh.vertexCount > thinMesh.vertexCount)
+        assertTrue(thickMesh.triangleCount > thinMesh.triangleCount)
+
+        // Todas las normales deben permanecer estrictamente unitarias
+        for (v in 0 until thickMesh.vertexCount) {
+            assertEquals("Normal unitaria", 1.0f, thickMesh.getNormalMagnitude(v), 0.001f)
         }
     }
 }

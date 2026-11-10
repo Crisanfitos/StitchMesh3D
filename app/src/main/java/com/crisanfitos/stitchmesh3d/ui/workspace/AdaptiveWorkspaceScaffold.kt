@@ -252,14 +252,30 @@ fun AdaptiveWorkspaceScaffold(
                                     }
                                 } ?: emptyList()
                                 if (instances.isNotEmpty()) {
-                                    val ring = RingProfileGenerator.generateRingFromInstances(idx + 1, instances, gauge, prevRing)
+                                    val ring = RingProfileGenerator.generateRingFromInstances(
+                                        roundIndex = idx + 1,
+                                        instances = instances,
+                                        gaugeStandard = gauge,
+                                        previousRing = prevRing,
+                                        isContinuousSpiral = true
+                                    )
                                     ringProfiles.add(ring)
                                     prevRing = ring
                                 }
                             }
                             if (ringProfiles.isNotEmpty()) {
                                 val includePolarCap = (currentTopology == PartTopologyType.CLOSED_FILLED)
-                                val rawMesh = AdaptiveTessellator.tessellate(ringProfiles, includePolarCap = includePolarCap, defaultColorHex = partColor)
+                                val wallThicknessMm = if (currentTopology == PartTopologyType.SEMI_CLOSED_TUBE) {
+                                    gauge.stitchThicknessMm.toFloat()
+                                } else {
+                                    0f
+                                }
+                                val rawMesh = AdaptiveTessellator.tessellate(
+                                    rings = ringProfiles,
+                                    includePolarCap = includePolarCap,
+                                    defaultColorHex = partColor,
+                                    wallThicknessMm = wallThicknessMm
+                                )
                                 val mesh = StuffingInflationFilter.applyInflation(rawMesh, currentTopology)
                                 viewportViewModel.processIntent(ViewportIntent.SetMeshGeometry(mesh))
                             }

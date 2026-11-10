@@ -269,8 +269,8 @@ data class BoundingBox3D(
 ) {
     val widthMm: Float get() = (maxX - minX).coerceAtLeast(0f)
     val depthMm: Float get() = (maxY - minY).coerceAtLeast(0f)
-    val heightMm: Float get() = (maxZ - minZ).coerceAtLeast(0f)
-    val maxDiameterMm: Float get() = maxOf(widthMm, depthMm)
+    val heightMm: Float get() = maxOf((maxZ - minZ).coerceAtLeast(0f), (maxY - minY).coerceAtLeast(0f))
+    val maxDiameterMm: Float get() = maxOf(widthMm, (maxZ - minZ).coerceAtLeast(0f))
 
     val isEmpty: Boolean get() = widthMm == 0f && depthMm == 0f && heightMm == 0f
 }
