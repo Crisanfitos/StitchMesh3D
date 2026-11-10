@@ -13,6 +13,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.crisanfitos.stitchmesh3d.ui.dashboard.components.LinterValidationStatus
+import com.crisanfitos.stitchmesh3d.core.export.ExportableMeshPart
+import com.crisanfitos.stitchmesh3d.domain.model.PatternRound
+import com.crisanfitos.stitchmesh3d.domain.model.Project
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.AddPartDialog
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.DeletePartConfirmDialog
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.ExportTechnicalDialog
@@ -124,12 +129,70 @@ fun WorkspaceScreen(
     }
 
     if (showExportDialog) {
+        val domainParts = state.parts.map { partUi ->
+            val roundUis = state.roundsByPartId[partUi.id] ?: emptyList()
+            val rounds = roundUis.map { r ->
+                PatternRound(
+                    id = r.id,
+                    partId = partUi.id,
+                    roundNumber = r.roundNumber,
+                    rawInstruction = r.rawInstruction,
+                    colorHex = r.colorHex ?: "#E06D53",
+                    consumedStitches = r.consumedStitches,
+                    producedStitches = r.producedStitches,
+                    declaredStitches = r.declaredStitches,
+                    isValid = r.isValid
+                )
+            }
+            ProjectPart(
+                id = partUi.id,
+                projectId = state.projectId,
+                name = partUi.name,
+                sortOrder = partUi.sortOrder,
+                isValid = rounds.all { it.isValid },
+                rounds = rounds
+            )
+        }
+        val currentProject = remember(state) {
+            Project(
+                id = state.projectId,
+                title = state.projectTitle,
+                hookSizeMm = state.hookSizeMm,
+                isValid = state.validationStatus == LinterValidationStatus.VALID,
+                parts = domainParts
+            )
+        }
+        val meshParts = remember(state.parts, state.meshGeometry) {
+            state.parts.map { p ->
+                val geom = state.meshGeometry
+                if (geom != null && geom.vertexPositions.isNotEmpty()) {
+                    ExportableMeshPart(
+                        partId = p.id,
+                        name = p.name,
+                        colorHex = p.colorHex,
+                        positions = geom.vertexPositions,
+                        normals = geom.vertexNormals,
+                        uvs = geom.vertexUvs,
+                        indices = geom.indices
+                    )
+                } else {
+                    ExportableMeshPart(
+                        partId = p.id,
+                        name = p.name,
+                        colorHex = p.colorHex,
+                        positions = floatArrayOf(0f, 0f, 0f, 10f, 0f, 0f, 0f, 10f, 0f),
+                        normals = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 0f, 0f, 1f),
+                        indices = intArrayOf(0, 1, 2)
+                    )
+                }
+            }
+        }
+
         ExportTechnicalDialog(
             projectTitle = state.projectTitle,
-            onDismiss = { showExportDialog = false },
-            onExportConfirmed = { _, _ ->
-                showExportDialog = false
-            }
+            project = currentProject,
+            meshParts = meshParts,
+            onDismiss = { showExportDialog = false }
         )
     }
 }

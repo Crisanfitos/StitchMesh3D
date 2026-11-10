@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -35,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +48,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.crisanfitos.stitchmesh3d.core.export.ExportableMeshPart
+import com.crisanfitos.stitchmesh3d.domain.model.Project
+import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
+import com.crisanfitos.stitchmesh3d.ui.assembly.components.AssemblyMeshCombiner
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.AssemblyViewport3D
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.SceneGraphTree
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.TransformInspectorPanel
@@ -60,6 +66,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
 import com.crisanfitos.stitchmesh3d.ui.theme.Typography
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.AddPartDialog
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.DeletePartConfirmDialog
+import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.ExportTechnicalDialog
 import com.crisanfitos.stitchmesh3d.ui.workspace.dialogs.RenamePartDialog
 
 /**
@@ -100,6 +107,7 @@ fun MultiPartAssemblyScreen(
     }
 
     var selectedMobileTab by remember { mutableIntStateOf(0) }
+    var showExportDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -158,6 +166,17 @@ fun MultiPartAssemblyScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { showExportDialog = true },
+                        modifier = Modifier.testTag("assembly_top_export_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FileDownload,
+                            contentDescription = "Exportar modelo y ficha técnica",
+                            tint = StitchMeshTerracotta,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     IconButton(
                         onClick = { viewModel.processIntent(AssemblyIntent.ResetCamera) },
                         modifier = Modifier.testTag("assembly_top_reset_camera")
@@ -477,6 +496,61 @@ fun MultiPartAssemblyScreen(
             onConfirm = {
                 viewModel.processIntent(AssemblyIntent.DeletePart(state.partActionTarget!!.id))
             }
+        )
+    }
+
+    if (showExportDialog) {
+        val domainParts = state.parts.mapIndexed { idx, part ->
+            ProjectPart(
+                id = part.id,
+                projectId = state.projectId,
+                name = part.name,
+                sortOrder = idx,
+                transformPositionX = state.transformsByPartId[part.id]?.posX ?: 0f,
+                transformPositionY = state.transformsByPartId[part.id]?.posY ?: 0f,
+                transformPositionZ = state.transformsByPartId[part.id]?.posZ ?: 0f,
+                transformRotationX = state.transformsByPartId[part.id]?.rotX ?: 0f,
+                transformRotationY = state.transformsByPartId[part.id]?.rotY ?: 0f,
+                transformRotationZ = state.transformsByPartId[part.id]?.rotZ ?: 0f,
+                isValid = true
+            )
+        }
+        val currentProject = remember(state) {
+            Project(
+                id = state.projectId,
+                title = state.projectTitle,
+                isValid = true,
+                parts = domainParts
+            )
+        }
+        val meshParts = remember(state.parts, state.meshesByPartId, state.transformsByPartId) {
+            state.parts.map { part ->
+                val t = state.transformsByPartId[part.id]
+                val m = state.meshesByPartId[part.id] ?: AssemblyMeshCombiner.createDefaultPartMesh(part)
+                ExportableMeshPart(
+                    partId = part.id,
+                    name = part.name,
+                    colorHex = part.colorHex,
+                    positions = m.vertexPositions,
+                    normals = m.vertexNormals,
+                    uvs = m.vertexUvs,
+                    indices = m.indices,
+                    translateXMm = t?.posX ?: 0f,
+                    translateYMm = t?.posY ?: 0f,
+                    translateZMm = t?.posZ ?: 0f,
+                    rotateXDeg = t?.rotX ?: 0f,
+                    rotateYDeg = t?.rotY ?: 0f,
+                    rotateZDeg = t?.rotZ ?: 0f,
+                    isMirrored = t?.isMirrored ?: false
+                )
+            }
+        }
+
+        ExportTechnicalDialog(
+            projectTitle = state.projectTitle,
+            project = currentProject,
+            meshParts = meshParts,
+            onDismiss = { showExportDialog = false }
         )
     }
 }
