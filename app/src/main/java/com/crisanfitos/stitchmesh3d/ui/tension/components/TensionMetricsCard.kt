@@ -40,6 +40,7 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSageGreen
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceBorder
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceContainer
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceHigh
+import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextDisabled
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
@@ -83,9 +84,14 @@ fun TensionMetricsCard(
 
                 if (calibrationResult != null) {
                     val isTolerant = calibrationResult.isWithinStandardTolerance
-                    val badgeBg = if (isTolerant) StitchMeshSageGreen.copy(alpha = 0.15f) else StitchMeshYarnGold.copy(alpha = 0.15f)
-                    val badgeBorder = if (isTolerant) StitchMeshSageGreen else StitchMeshYarnGold
-                    val badgeText = if (isTolerant) "Tolerancia Óptima" else "Tensión Ajustada"
+                    val devW = calibrationResult.widthDeviationPercent
+                    val (badgeText, badgeColor) = when {
+                        isTolerant -> Pair("Tolerancia Óptima", StitchMeshSageGreen)
+                        devW > 0 -> Pair("Tensión Holgada", StitchMeshTerracotta)
+                        else -> Pair("Tensión Apretada", StitchMeshYarnGold)
+                    }
+                    val badgeBg = badgeColor.copy(alpha = 0.15f)
+                    val badgeBorder = badgeColor
 
                     Row(
                         modifier = Modifier

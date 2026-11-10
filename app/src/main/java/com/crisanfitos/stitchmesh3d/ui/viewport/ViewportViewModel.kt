@@ -158,7 +158,14 @@ class ViewportViewModel @Inject constructor() :
             }
             is ViewportIntent.UpdatePatternParameters -> {
                 val rounds = intent.totalRounds.coerceAtLeast(1)
-                val clampedPeel = state.value.currentPeelRound.coerceIn(1, rounds)
+                val previousTotal = state.value.totalRounds
+                val previousPeel = state.value.currentPeelRound
+                // Auto-avanzar si el usuario estaba visualizando la última vuelta disponible
+                val clampedPeel = if (previousPeel >= previousTotal && rounds > previousTotal) {
+                    rounds
+                } else {
+                    previousPeel.coerceIn(1, rounds)
+                }
                 setState {
                     val computedDimensions = calculateDimensions(clampedPeel, intent.hookSizeMm)
                     copy(

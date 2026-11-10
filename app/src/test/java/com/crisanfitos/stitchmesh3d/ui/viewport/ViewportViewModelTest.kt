@@ -207,5 +207,40 @@ class ViewportViewModelTest {
         assertEquals(30f, state.dimensions.depthMm, 0.001f)
         assertEquals("40 mm × 50 mm × 30 mm", state.dimensions.formattedDimensions())
     }
+
+    @Test
+    fun `peel round auto advances when new rounds are added if previously at max`() {
+        // Inicial: 3 vueltas, peel en 3
+        assertEquals(3, viewModel.state.value.totalRounds)
+        assertEquals(3, viewModel.state.value.currentPeelRound)
+
+        // Se añaden 2 vueltas (total = 5)
+        viewModel.processIntent(
+            ViewportIntent.UpdatePatternParameters(totalRounds = 5, hookSizeMm = 3.5f, yarnWeightName = "#4")
+        )
+
+        // Auto-avanza a 5 para mostrar las nuevas vueltas en el visor 3D
+        assertEquals(5, viewModel.state.value.totalRounds)
+        assertEquals(5, viewModel.state.value.currentPeelRound)
+    }
+
+    @Test
+    fun `peel round preserves custom selection when new rounds are added if previously peeled back`() {
+        // Total 5 vueltas, el usuario explícitamente selecciona la vuelta 2 con el slider
+        viewModel.processIntent(
+            ViewportIntent.UpdatePatternParameters(totalRounds = 5, hookSizeMm = 3.5f, yarnWeightName = "#4")
+        )
+        viewModel.processIntent(ViewportIntent.SelectPeelRound(2))
+        assertEquals(2, viewModel.state.value.currentPeelRound)
+
+        // Se añade una sexta vuelta (total = 6)
+        viewModel.processIntent(
+            ViewportIntent.UpdatePatternParameters(totalRounds = 6, hookSizeMm = 3.5f, yarnWeightName = "#4")
+        )
+
+        // No auto-avanza porque el usuario estaba inspeccionando una vuelta intermedia (se mantiene en 2)
+        assertEquals(6, viewModel.state.value.totalRounds)
+        assertEquals(2, viewModel.state.value.currentPeelRound)
+    }
 }
 
