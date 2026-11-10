@@ -20,8 +20,11 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -52,15 +55,18 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.crisanfitos.stitchmesh3d.domain.model.AuthState
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.ProjectCard
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.ProjectCardUiModel
 import com.crisanfitos.stitchmesh3d.ui.dashboard.components.SearchAndFilterBar
+import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.CloudAccountDialog
 import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.NewProjectModalSheet
 import com.crisanfitos.stitchmesh3d.ui.dashboard.dialogs.toHexRgbString
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMesh3DTheme
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshNeutralDark
+import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSageGreen
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceBorder
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceContainer
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshSurfaceHigh
@@ -118,7 +124,10 @@ fun DashboardContent(
         containerColor = StitchMeshNeutralDark,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            DashboardTopBar()
+            DashboardTopBar(
+                authState = state.authState,
+                onAccountClick = { onIntent(DashboardIntent.OpenCloudAccountModal) }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -236,12 +245,33 @@ fun DashboardContent(
                 }
             )
         }
+
+        // Diálogo de cuenta y perfil en Supabase Cloud (SM-089)
+        if (state.isCloudAccountDialogVisible) {
+            CloudAccountDialog(
+                authState = state.authState,
+                onDismiss = { onIntent(DashboardIntent.DismissCloudAccountModal) },
+                onSignIn = { email, pass -> onIntent(DashboardIntent.SignIn(email, pass)) },
+                onSignUp = { email, pass, username, displayName ->
+                    onIntent(DashboardIntent.SignUp(email, pass, username, displayName))
+                },
+                onUpdateProfile = { username, displayName ->
+                    onIntent(DashboardIntent.UpdateProfile(username, displayName))
+                },
+                onSignOut = { onIntent(DashboardIntent.SignOut) }
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DashboardTopBar() {
+private fun DashboardTopBar(
+    authState: AuthState = AuthState.Unauthenticated,
+    onAccountClick: () -> Unit = {}
+) {
+    val isAuthenticated = authState is AuthState.Authenticated
+
     TopAppBar(
         title = {
             Row(
@@ -281,6 +311,19 @@ private fun DashboardTopBar() {
             containerColor = StitchMeshNeutralDark
         ),
         actions = {
+            // Icono de cuenta / nube (SM-089)
+            IconButton(
+                onClick = onAccountClick,
+                modifier = Modifier.testTag("dashboard_account_btn")
+            ) {
+                Icon(
+                    imageVector = if (isAuthenticated) Icons.Default.CloudDone else Icons.Default.CloudQueue,
+                    contentDescription = if (isAuthenticated) "Cuenta conectada" else "Cuenta y sincronización cloud",
+                    tint = if (isAuthenticated) StitchMeshSageGreen else StitchMeshTextSecondary,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .padding(end = 16.dp)

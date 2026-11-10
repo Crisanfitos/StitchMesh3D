@@ -53,6 +53,7 @@ import com.crisanfitos.stitchmesh3d.core.geometry.RingProfile
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfileGenerator
 import com.crisanfitos.stitchmesh3d.core.geometry.StuffingInflationFilter
 import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
+import com.crisanfitos.stitchmesh3d.domain.model.SyncStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.crisanfitos.stitchmesh3d.ui.viewport.CrochetViewportScreen
@@ -135,6 +136,7 @@ fun AdaptiveWorkspaceScaffold(
     onCalibrateTensionClick: (() -> Unit)? = null,
     onExportClick: (() -> Unit)? = null,
     onAssemblyClick: (() -> Unit)? = null,
+    syncStatus: SyncStatus = SyncStatus.SYNCED,
     newlyCreatedRoundId: String? = null,
     onConsumeFocus: (() -> Unit)? = null,
     meshGeometry: MeshGeometry? = null,
@@ -339,6 +341,7 @@ fun AdaptiveWorkspaceScaffold(
                     yarnWeightName = yarnWeightName,
                     validationStatus = validationStatus,
                     onBackClick = onBackClick,
+                    syncStatus = syncStatus,
                     onCalibrateTensionClick = onCalibrateTensionClick,
                     onExportClick = onExportClick,
                     onAssemblyClick = onAssemblyClick

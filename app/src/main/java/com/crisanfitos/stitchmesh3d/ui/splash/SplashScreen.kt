@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.crisanfitos.stitchmesh3d.domain.repository.AuthRepository
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshNeutralDark
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshOnAccent
@@ -57,12 +58,20 @@ import kotlinx.coroutines.delay
 fun SplashScreen(
     onSplashCompleted: () -> Unit,
     modifier: Modifier = Modifier,
-    splashDurationMs: Long = 900L
+    splashDurationMs: Long = 900L,
+    authRepository: AuthRepository? = null
 ) {
     val scale = remember { Animatable(0.85f) }
     val alpha = remember { Animatable(0.2f) }
 
     LaunchedEffect(Unit) {
+        if (authRepository != null) {
+            try {
+                authRepository.restoreSession()
+            } catch (_: Throwable) {
+                // Silencioso en arranque inicial
+            }
+        }
         scale.animateTo(
             targetValue = 1.0f,
             animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing)

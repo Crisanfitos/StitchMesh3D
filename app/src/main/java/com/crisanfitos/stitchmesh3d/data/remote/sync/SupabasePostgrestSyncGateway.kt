@@ -46,9 +46,12 @@ class HttpUrlSupabasePostgrestSyncGateway @Inject constructor(
     }
 
     override suspend fun upsertProjectGraph(accessToken: String, userId: String, project: Project) {
+        val safeProjectId = toDeterministicUuid(project.id)
+        val safeUserId = toDeterministicUuid(userId)
+
         val projectJson = JSONObject().apply {
-            put("id", project.id)
-            put("user_id", userId)
+            put("id", safeProjectId)
+            put("user_id", safeUserId)
             put("title", project.title)
             put("description", project.description)
             put("structure_type", project.structureType.code)
@@ -69,9 +72,10 @@ class HttpUrlSupabasePostgrestSyncGateway @Inject constructor(
         )
 
         for (part in project.parts) {
+            val safePartId = toDeterministicUuid(part.id)
             val partJson = JSONObject().apply {
-                put("id", part.id)
-                put("project_id", project.id)
+                put("id", safePartId)
+                put("project_id", safeProjectId)
                 put("name", part.name)
                 put("topology_type", part.topologyType.code)
                 put("sort_order", part.sortOrder)
@@ -94,10 +98,11 @@ class HttpUrlSupabasePostgrestSyncGateway @Inject constructor(
             if (part.rounds.isNotEmpty()) {
                 val roundsArray = JSONArray()
                 part.rounds.forEach { round ->
+                    val safeRoundId = toDeterministicUuid(round.id)
                     roundsArray.put(
                         JSONObject().apply {
-                            put("id", round.id)
-                            put("part_id", part.id)
+                            put("id", safeRoundId)
+                            put("part_id", safePartId)
                             put("round_number", round.roundNumber)
                             put("raw_instruction", round.rawInstruction)
                             put("color_hex", round.colorHex)
@@ -220,5 +225,16 @@ class HttpUrlSupabasePostgrestSyncGateway @Inject constructor(
             throw IllegalStateException("Supabase PostgREST HTTP $code: $responseBody")
         }
         return responseBody
+    }
+
+    companion object {
+        fun toDeterministicUuid(id: String): String {
+            if (id.isBlank()) return java.util.UUID.randomUUID().toString()
+            return runCatching {
+                java.util.UUID.fromString(id).toString()
+            }.getOrElse {
+                java.util.UUID.nameUUIDFromBytes(id.toByteArray(Charsets.UTF_8)).toString()
+            }
+        }
     }
 }

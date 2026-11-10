@@ -1,7 +1,9 @@
 package com.crisanfitos.stitchmesh3d.di
 
 import com.crisanfitos.stitchmesh3d.data.remote.SupabaseConfig
+import com.crisanfitos.stitchmesh3d.data.remote.auth.AesGcmSessionTokenEncryptor
 import com.crisanfitos.stitchmesh3d.data.remote.auth.HttpUrlSupabaseAuthGateway
+import com.crisanfitos.stitchmesh3d.data.remote.auth.SessionTokenEncryptor
 import com.crisanfitos.stitchmesh3d.data.remote.auth.SessionTokenStore
 import com.crisanfitos.stitchmesh3d.data.remote.auth.SharedPreferencesSessionTokenStore
 import com.crisanfitos.stitchmesh3d.data.remote.auth.SupabaseAuthGateway
@@ -28,6 +30,10 @@ object SupabaseNetworkModule {
     @Provides
     @Singleton
     fun provideSupabaseConfig(): SupabaseConfig = SupabaseConfig()
+
+    @Provides
+    @Singleton
+    fun provideSessionTokenEncryptor(): SessionTokenEncryptor = AesGcmSessionTokenEncryptor()
 }
 
 @Module

@@ -244,6 +244,19 @@ class DashboardViewModelTest {
         assertEquals(DashboardEffect.NavigateToWorkspace("p-target-123"), emittedEffect)
         job.cancel()
     }
+
+    @Test
+    fun `open and dismiss cloud account modal updates state`() = runTest(testDispatcher) {
+        assertFalse(viewModel.state.value.isCloudAccountDialogVisible)
+
+        viewModel.processIntent(DashboardIntent.OpenCloudAccountModal)
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.isCloudAccountDialogVisible)
+
+        viewModel.processIntent(DashboardIntent.DismissCloudAccountModal)
+        advanceUntilIdle()
+        assertFalse(viewModel.state.value.isCloudAccountDialogVisible)
+    }
 }
 
 private class FakeProjectRepository : ProjectRepository {
