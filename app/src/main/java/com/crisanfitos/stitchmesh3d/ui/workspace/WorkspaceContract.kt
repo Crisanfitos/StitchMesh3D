@@ -127,7 +127,8 @@ data class WorkspaceState(
     val partActionTarget: ProjectPartUiModel? = null,
     val partActionError: String? = null,
     val newlyCreatedRoundId: String? = null,
-    val isStuffingSimulationEnabled: Boolean = true
+    val isStuffingSimulationEnabled: Boolean = true,
+    val isVolumetricYarnEnabled: Boolean = true
 )
 
 /**
@@ -147,6 +148,7 @@ sealed interface WorkspaceIntent {
     data object AddPart : WorkspaceIntent
     data object OpenAddPartDialog : WorkspaceIntent
     data object DismissPartDialogs : WorkspaceIntent
+    data class ToggleVolumetricYarn(val enabled: Boolean) : WorkspaceIntent
     data class CreatePart(
         val name: String,
         val colorHex: String = "#E06D53",
