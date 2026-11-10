@@ -226,6 +226,50 @@ class WorkspaceViewModelTest {
         assertNotNull(part)
         assertEquals(2, part!!.rounds.size)
     }
+
+    @Test
+    fun `expanding range V3-V6 produces 4 individual rounds and leaves next round as V7`() = runTest(testDispatcher) {
+        val viewModel = WorkspaceViewModel(defaultDispatcher = testDispatcher)
+        testScheduler.advanceUntilIdle()
+
+        // Estado inicial: 3 vueltas (r1, r2, r3)
+        assertEquals(3, viewModel.state.value.rounds.size)
+
+        // Editar vuelta 3 con un rango V3-V6: 18 pb
+        viewModel.processIntent(WorkspaceIntent.EditRoundInstruction("r3", "V3-V6: 18 pb"))
+        testScheduler.advanceUntilIdle()
+
+        val expandedRounds = viewModel.state.value.rounds
+        assertEquals(6, expandedRounds.size)
+        assertEquals("V3: 18 pb", expandedRounds[2].rawInstruction)
+        assertEquals(3, expandedRounds[2].roundNumber)
+        assertEquals("V4: 18 pb", expandedRounds[3].rawInstruction)
+        assertEquals(4, expandedRounds[3].roundNumber)
+        assertEquals("V5: 18 pb", expandedRounds[4].rawInstruction)
+        assertEquals(5, expandedRounds[4].roundNumber)
+        assertEquals("V6: 18 pb", expandedRounds[5].rawInstruction)
+        assertEquals(6, expandedRounds[5].roundNumber)
+
+        // Agregar una vuelta más debe generar automáticamente V7
+        viewModel.processIntent(WorkspaceIntent.AddRound)
+        testScheduler.advanceUntilIdle()
+
+        val afterAddRounds = viewModel.state.value.rounds
+        assertEquals(7, afterAddRounds.size)
+        assertEquals(7, afterAddRounds.last().roundNumber)
+        assertEquals("r7", afterAddRounds.last().id)
+    }
+
+    @Test
+    fun `linter assigns correct expectedBaseStitches to all rounds`() = runTest(testDispatcher) {
+        val viewModel = WorkspaceViewModel(defaultDispatcher = testDispatcher)
+        testScheduler.advanceUntilIdle()
+
+        val rounds = viewModel.state.value.rounds
+        assertEquals(0, rounds[0].expectedBaseStitches) // V1
+        assertEquals(6, rounds[1].expectedBaseStitches) // V2 espera 6 pb de V1
+        assertEquals(12, rounds[2].expectedBaseStitches) // V3 espera 12 pb de V2
+    }
 }
 
 private class FakeTestProjectRepository(

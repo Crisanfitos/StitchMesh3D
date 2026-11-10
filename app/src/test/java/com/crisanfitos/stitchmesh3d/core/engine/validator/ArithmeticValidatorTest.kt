@@ -1,5 +1,6 @@
 package com.crisanfitos.stitchmesh3d.core.engine.validator
 
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -249,5 +250,52 @@ class ArithmeticValidatorTest {
         assertEquals(10, results[0].totalProduced)
         assertEquals(10, results[1].totalConsumed)
         assertEquals(10, results[1].totalProduced)
+    }
+
+    @Test
+    fun `validateRound interpreta AM corchete 8 sin error y con 8 puntos producidos`() {
+        val result = ArithmeticValidator.validateRound(
+            rawLine = "AM [8]",
+            previousRoundStitches = 0
+        )
+
+        assertTrue(result.isValid)
+        assertEquals(0, result.totalConsumed)
+        assertEquals(8, result.totalProduced)
+        assertNull(result.declaredCount)
+    }
+
+    @Test
+    fun `validateRound en modo FLAT_PANEL soporta cadenetas de subida y directiva girar sin error de consumo`() {
+        // Fila 1: cadeneta base
+        val r1 = ArithmeticValidator.validateRound(
+            rawLine = "10 cad",
+            previousRoundStitches = 0,
+            topologyType = PartTopologyType.FLAT_PANEL
+        )
+        assertTrue(r1.isValid)
+        assertEquals(0, r1.totalConsumed)
+        assertEquals(10, r1.totalProduced)
+
+        // Fila 2: 1 cad de subida + 10 pb + directiva girar
+        val r2 = ArithmeticValidator.validateRound(
+            rawLine = "1 cad, 10 pb, girar (10)",
+            previousRoundStitches = 10,
+            topologyType = PartTopologyType.FLAT_PANEL
+        )
+        assertTrue(r2.isValid)
+        assertEquals(10, r2.totalConsumed)
+        assertEquals(10, r2.totalProduced)
+        assertEquals(10, r2.declaredCount)
+
+        // Fila 3: cadeneta de subida final: 10 pb, 1 cad
+        val r3 = ArithmeticValidator.validateRound(
+            rawLine = "10 pb, 1 cad",
+            previousRoundStitches = 10,
+            topologyType = PartTopologyType.FLAT_PANEL
+        )
+        assertTrue(r3.isValid)
+        assertEquals(10, r3.totalConsumed)
+        assertEquals(10, r3.totalProduced)
     }
 }

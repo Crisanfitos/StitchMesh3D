@@ -1,7 +1,9 @@
 package com.crisanfitos.stitchmesh3d.core.engine.validator
 
+import com.crisanfitos.stitchmesh3d.core.engine.model.StitchType
 import com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetAstNode
 import com.crisanfitos.stitchmesh3d.core.engine.parser.CrochetParser
+import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 
 /**
  * Validador aritmético formal de invariantes de base y cierre para crochet y amigurumi.
@@ -23,7 +25,8 @@ object ArithmeticValidator {
     fun validateRound(
         rawLine: String,
         previousRoundStitches: Int? = null,
-        language: ValidationLanguage = ValidationLanguage.ES
+        language: ValidationLanguage = ValidationLanguage.ES,
+        topologyType: PartTopologyType = PartTopologyType.CLOSED_FILLED
     ): RoundValidationResult {
         val parseResult = CrochetParser.parse(rawLine)
         if (!parseResult.isSuccess || parseResult.ast == null) {
@@ -38,7 +41,8 @@ object ArithmeticValidator {
         return validateRound(
             ast = parseResult.ast,
             previousRoundStitches = previousRoundStitches,
-            language = language
+            language = language,
+            topologyType = topologyType
         )
     }
 
@@ -48,17 +52,24 @@ object ArithmeticValidator {
      * @param ast Árbol AST de la vuelta analizada.
      * @param previousRoundStitches Puntos producidos por la vuelta anterior S_{k-1} (null o 0 si es la vuelta inicial).
      * @param language Idioma para los mensajes explicativos de diagnóstico.
+     * @param topologyType Topología de la pieza (soporte para cadenetas de subida en [PartTopologyType.FLAT_PANEL]).
      * @return [RoundValidationResult] con el diagnóstico detallado.
      */
     fun validateRound(
         ast: CrochetAstNode.RoundNode,
         previousRoundStitches: Int? = null,
-        language: ValidationLanguage = ValidationLanguage.ES
+        language: ValidationLanguage = ValidationLanguage.ES,
+        topologyType: PartTopologyType = PartTopologyType.CLOSED_FILLED
     ): RoundValidationResult {
         val roundNumber = ast.header?.startRound
         val rawLine = ast.rawLine
-        val totalConsumed = ast.totalConsumedStitches
-        val totalProduced = ast.totalProducedStitches
+        val totalConsumed = if (topologyType == PartTopologyType.FLAT_PANEL && (previousRoundStitches == null || previousRoundStitches == 0)) {
+            val all = ast.flatten()
+            if (all.all { it.stitchType is StitchType.Chain }) 0 else ast.totalConsumedStitches
+        } else {
+            ast.totalConsumedStitches
+        }
+        val totalProduced = ast.getEffectiveProducedStitches(topologyType)
         val declared = ast.declaredCount
 
         // 1. Invariante 1: Base Consumida (Σ C_i == S_{k-1})
