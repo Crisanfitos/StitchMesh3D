@@ -70,6 +70,14 @@ object StuffingInflationFilter {
 
         // 2. Construcción de grafo de adyacencia de vértices a partir de los triángulos
         val neighbors = buildAdjacencyList(indices, vertexCount)
+        val coincidentSet = if (config.preserveBloEdges && coincidentPairs.isNotEmpty()) {
+            val set = BooleanArray(vertexCount)
+            for (p in coincidentPairs) {
+                set[p.first] = true
+                set[p.second] = true
+            }
+            set
+        } else null
 
         // 3. Suavizado Laplaciano tangencial libre de contracción para atenuar cantos y facetas poligonales
         if (config.smoothingIterations > 0 && config.relaxationFactor > 0f) {
@@ -131,9 +139,15 @@ object StuffingInflationFilter {
                         tLapZ = lapZ
                     }
 
-                    tempPos[idx] = curPos[idx] + config.relaxationFactor * tLapX
-                    tempPos[idx + 1] = curPos[idx + 1] + config.relaxationFactor * tLapY
-                    tempPos[idx + 2] = curPos[idx + 2] + config.relaxationFactor * tLapZ
+                    val rFactor = if (coincidentSet != null && coincidentSet[i]) {
+                        config.relaxationFactor * 0.25f
+                    } else {
+                        config.relaxationFactor
+                    }
+
+                    tempPos[idx] = curPos[idx] + rFactor * tLapX
+                    tempPos[idx + 1] = curPos[idx + 1] + rFactor * tLapY
+                    tempPos[idx + 2] = curPos[idx + 2] + rFactor * tLapZ
                 }
 
                 // Sincronizar vértices coincidentes en cada iteración para evitar fisuras o aberturas
@@ -147,16 +161,16 @@ object StuffingInflationFilter {
         // 4. Normales de superficie de la malla suavizada
         val smoothedNormals = computeSmoothNormals(curPos, indices, vertexCount)
 
-        // 5. Cálculo del centro axial en XY y desplazamiento radial por presión de inflado
+        // 5. Cálculo del centro axial en XZ y desplazamiento radial por presión de inflado (Y-up)
         if (config.inflationFactor > 0f) {
             var sumX = 0.0
-            var sumY = 0.0
+            var sumZ = 0.0
             for (i in 0 until vertexCount) {
                 sumX += curPos[i * 3]
-                sumY += curPos[i * 3 + 1]
+                sumZ += curPos[i * 3 + 2]
             }
             val axisCenterX = (sumX / vertexCount).toFloat()
-            val axisCenterY = (sumY / vertexCount).toFloat()
+            val axisCenterZ = (sumZ / vertexCount).toFloat()
 
             val inflationScale = if (topologyType == PartTopologyType.CLOSED_FILLED) {
                 config.inflationFactor
@@ -167,11 +181,11 @@ object StuffingInflationFilter {
             for (i in 0 until vertexCount) {
                 val idx = i * 3
                 val vx = curPos[idx]
-                val vy = curPos[idx + 1]
+                val vz = curPos[idx + 2]
 
                 val dx = vx - axisCenterX
-                val dy = vy - axisCenterY
-                val localRadius = sqrt(dx * dx + dy * dy).coerceAtLeast(0.5f)
+                val dz = vz - axisCenterZ
+                val localRadius = sqrt(dx * dx + dz * dz).coerceAtLeast(0.5f)
 
                 // La presión de empuje actúa normal a la superficie suavizada
                 val pushDistance = inflationScale * localRadius

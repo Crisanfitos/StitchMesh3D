@@ -235,10 +235,10 @@ class MeshNormalsAndBumpsTest {
         val pPopcorn = mesh.getVertexPosition(10)
         val pPuff = mesh.getVertexPosition(12)
 
-        val rBase = hypot(pBase[0], pBase[1])
-        val rBobble = hypot(pBobble[0], pBobble[1])
-        val rPopcorn = hypot(pPopcorn[0], pPopcorn[1])
-        val rPuff = hypot(pPuff[0], pPuff[1])
+        val rBase = hypot(pBase[0], pBase[2])
+        val rBobble = hypot(pBobble[0], pBobble[2])
+        val rPopcorn = hypot(pPopcorn[0], pPopcorn[2])
+        val rPuff = hypot(pPuff[0], pPuff[2])
 
         assertTrue("Bobble debe sobresalir hacia el exterior respecto a punto base", rBobble > rBase)
         assertTrue("Popcorn debe sobresalir hacia el exterior respecto a punto base", rPopcorn > rBase)
@@ -272,7 +272,7 @@ class MeshNormalsAndBumpsTest {
             // Vértices del cilindro/cono deben tener normal con componente radial hacia afuera
             if (v > 0) {
                 val pos = mesh.getVertexPosition(v)
-                val radialDot = n[0] * pos[0] + n[1] * pos[1]
+                val radialDot = n[0] * pos[0] + n[2] * pos[2]
                 assertTrue("La normal en v=$v debe apuntar hacia el exterior radial: $radialDot", radialDot > 0f)
             }
         }

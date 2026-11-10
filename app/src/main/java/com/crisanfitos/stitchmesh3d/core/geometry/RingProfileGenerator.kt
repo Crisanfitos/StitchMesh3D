@@ -34,31 +34,38 @@ object RingProfileGenerator {
         roundIndex: Int,
         stitches: List<StitchType>,
         gaugeStandard: YarnGaugeStandard,
-        previousRing: RingProfile? = null
+        previousRing: RingProfile? = null,
+        isContinuousSpiral: Boolean = false
     ): RingProfile {
         val instances = stitches.mapIndexed { index, stitch ->
             StitchInstance(stitchType = stitch, indexInRound = index)
         }
-        return generateRingFromInstances(roundIndex, instances, gaugeStandard, previousRing)
+        return generateRingFromInstances(roundIndex, instances, gaugeStandard, previousRing, isContinuousSpiral)
     }
 
     /**
      * Genera un perfil geométrico de anillo a partir de una lista de [StitchInstance].
+     *
+     * Expande aumentos (producedStitches > 1) en columnas geométricas individuales con ancho unitario,
+     * orienta la malla en el estándar Y-up (glTF 2.0 / Filament) y aplica elevación helicoidal progresiva
+     * cuando [isContinuousSpiral] es true (SM-083).
      */
     fun generateRingFromInstances(
         roundIndex: Int,
         instances: List<StitchInstance>,
         gaugeStandard: YarnGaugeStandard,
-        previousRing: RingProfile? = null
+        previousRing: RingProfile? = null,
+        isContinuousSpiral: Boolean = false
     ): RingProfile {
         if (instances.isEmpty()) {
+            val fallbackY = previousRing?.maxY ?: 0.0
             return RingProfile(
                 roundIndex = roundIndex,
                 vertices = emptyList(),
                 circumferenceMm = 0.0,
                 meanRadiusMm = 0.0,
-                minZ = previousRing?.maxZ ?: 0.0,
-                maxZ = previousRing?.maxZ ?: 0.0
+                minY = fallbackY,
+                maxY = fallbackY
             )
         }
 
@@ -66,63 +73,107 @@ object RingProfileGenerator {
         val hStitch = gaugeStandard.stitchHeightMm
         val tStitch = gaugeStandard.stitchThicknessMm
 
-        // 1. Suma total de anchos relativos
-        val totalWRel = instances.sumOf { it.wRel }.coerceAtLeast(1e-6)
+        // Expansión anatómica de cada instrucción a sus puntos de corona producidos (SM-083)
+        // Ejemplo: V2: 6 aum -> 12 puntos de corona producidos con ancho w_stitch exacto
+        val crownPoints = instances.flatMap { inst ->
+            val count = maxOf(1, inst.producedStitches)
+            if (count > 1) {
+                val subWRel = when (inst.stitchType) {
+                    is StitchType.HdcIncrease -> 1.1
+                    is StitchType.DcIncrease -> 1.2
+                    else -> 1.0
+                }
+                List(count) {
+                    CrownPoint(
+                        stitchType = inst.stitchType,
+                        wRel = subWRel,
+                        hRel = inst.hRel,
+                        deltaRRel = inst.deltaRRel,
+                        normalDisplacement = inst.normalDisplacement,
+                        colorHex = inst.colorHex
+                    )
+                }
+            } else {
+                listOf(
+                    CrownPoint(
+                        stitchType = inst.stitchType,
+                        wRel = inst.wRel,
+                        hRel = inst.hRel,
+                        deltaRRel = inst.deltaRRel,
+                        normalDisplacement = inst.normalDisplacement,
+                        colorHex = inst.colorHex
+                    )
+                )
+            }
+        }
+
+        // 1. Suma total de anchos relativos de corona
+        val totalWRel = crownPoints.sumOf { it.wRel }.coerceAtLeast(1e-6)
 
         // 2. Perímetro circunferencial real de la vuelta (P_k)
-        val circumferenceMm = instances.sumOf { wStitch * it.wRel }
+        val circumferenceMm = crownPoints.sumOf { wStitch * it.wRel }
 
         // Prefijos acumulados para calcular el ángulo azimutal acumulado theta_{k, j}
         var accumulatedWRel = 0.0
-        val vertices = ArrayList<RingVertex>(instances.size)
+        val vertices = ArrayList<RingVertex>(crownPoints.size)
 
-        var minZ = Double.MAX_VALUE
-        var maxZ = -Double.MAX_VALUE
+        var minY = Double.MAX_VALUE
+        var maxY = -Double.MAX_VALUE
         var sumRadius = 0.0
 
-        for (j in instances.indices) {
-            val inst = instances[j]
+        for (j in crownPoints.indices) {
+            val pt = crownPoints[j]
 
             // 1. Ángulo azimutal acumulado theta_{k, j}
             val theta = TWO_PI * (accumulatedWRel / totalWRel)
-            accumulatedWRel += inst.wRel
+            accumulatedWRel += pt.wRel
 
             // 3. Radio local r_{k, j}
             val baseRadius = circumferenceMm / TWO_PI
-            val deltaR = tStitch * inst.deltaRRel
+            val deltaR = tStitch * pt.deltaRRel
             val localRadius = (baseRadius + deltaR).coerceAtLeast(0.0)
             sumRadius += localRadius
 
-            // 4. Altura axial adaptativa z_{k, j} con conicidad
-            val deltaHNominal = (hStitch * inst.hRel).coerceAtLeast(1e-4)
+            // 4. Altura axial adaptativa y_{k, j} en eje Y-up con conicidad y elevación helicoidal
+            val deltaHNominal = (hStitch * pt.hRel).coerceAtLeast(1e-4)
 
-            val z: Double
+            val baseY: Double
             if (previousRing != null && previousRing.vertices.isNotEmpty()) {
                 val closestPrev = previousRing.findClosestVertex(theta)
-                val zPrev = closestPrev?.z ?: previousRing.meanRadiusMm
+                val yPrev = closestPrev?.y ?: previousRing.meanRadiusMm
                 val rPrev = closestPrev?.radiusMm ?: 0.0
 
                 val radiusDiff = localRadius - rPrev
                 // Factor de conicidad cos(alpha) = delta_h_nom / sqrt(delta_h_nom^2 + delta_r^2)
                 val cosAlpha = deltaHNominal / sqrt((deltaHNominal * deltaHNominal) + (radiusDiff * radiusDiff))
 
-                z = zPrev + (deltaHNominal * cosAlpha)
+                baseY = yPrev + (deltaHNominal * cosAlpha)
             } else {
                 // Primer anillo (origen de la labor, ej. Anillo Mágico)
-                // Conicidad inicial respecto al polo central (r=0, z=0)
+                // Conicidad inicial respecto al polo central (r=0, y=0)
                 val cosAlpha = deltaHNominal / sqrt((deltaHNominal * deltaHNominal) + (localRadius * localRadius))
-                z = deltaHNominal * cosAlpha
+                baseY = deltaHNominal * cosAlpha
             }
 
-            if (z < minZ) minZ = z
-            if (z > maxZ) maxZ = z
+            // Elevación helicoidal progresiva en espiral continua (CONTINUOUS_SPIRAL: y + h * j / N)
+            val spiralLift = if (isContinuousSpiral && crownPoints.isNotEmpty()) {
+                deltaHNominal * (j.toDouble() / crownPoints.size)
+            } else {
+                0.0
+            }
+            val y = baseY + spiralLift
 
-            // 5. Deformación volumétrica 3D (bobble, popcorn, puff)
-            val normalBump = inst.normalDisplacement * tStitch
+            if (y < minY) minY = y
+            if (y > maxY) maxY = y
+
+            // 5. Deformación volumétrica 3D y coordenadas cartesianas estándar Y-up (Filament / glTF 2.0)
+            // Eje vertical: +Y (axial hacia arriba)
+            // Plano transversal/profundidad: XZ (x = r * cos(theta), z = -r * sin(theta))
+            val normalBump = pt.normalDisplacement * tStitch
             val effectiveRadius = localRadius + normalBump
 
             val x = effectiveRadius * cos(theta)
-            val y = effectiveRadius * sin(theta)
+            val z = -effectiveRadius * sin(theta)
 
             vertices.add(
                 RingVertex(
@@ -132,9 +183,9 @@ object RingProfileGenerator {
                     x = x,
                     y = y,
                     z = z,
-                    stitchType = inst.stitchType,
+                    stitchType = pt.stitchType,
                     normalBumpMm = normalBump,
-                    colorHex = inst.colorHex
+                    colorHex = pt.colorHex
                 )
             )
         }
@@ -146,8 +197,17 @@ object RingProfileGenerator {
             vertices = vertices,
             circumferenceMm = circumferenceMm,
             meanRadiusMm = meanRadius,
-            minZ = if (vertices.isEmpty()) 0.0 else minZ,
-            maxZ = if (vertices.isEmpty()) 0.0 else maxZ
+            minY = if (vertices.isEmpty()) 0.0 else minY,
+            maxY = if (vertices.isEmpty()) 0.0 else maxY
         )
     }
+
+    private data class CrownPoint(
+        val stitchType: StitchType,
+        val wRel: Double,
+        val hRel: Double,
+        val deltaRRel: Double,
+        val normalDisplacement: Double,
+        val colorHex: String?
+    )
 }

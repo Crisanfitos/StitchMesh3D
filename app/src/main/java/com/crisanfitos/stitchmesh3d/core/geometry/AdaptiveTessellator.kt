@@ -30,7 +30,8 @@ object AdaptiveTessellator {
     fun tessellate(
         rings: List<RingProfile>,
         includePolarCap: Boolean = true,
-        defaultColorHex: String = "#E06D53"
+        defaultColorHex: String = "#E06D53",
+        wallThicknessMm: Float = 0f
     ): MeshGeometry {
         val validRings = rings.filter { it.vertexCount > 0 }
         if (validRings.isEmpty()) {
@@ -57,13 +58,13 @@ object AdaptiveTessellator {
         val colorsList = ArrayList<Float>()
         val uvsList = ArrayList<Float>()
 
-        // 1. Vértice polar (índice 0 si está activo)
+        // 1. Vértice polar (índice 0 si está activo) en sistema Y-up estándar
         if (hasPole) {
             val firstRing = validRings.first()
-            val poleZ = (firstRing.minZ - (firstRing.meanRadiusMm * 0.25)).coerceAtLeast(0.0).toFloat()
+            val poleY = (firstRing.minY - (firstRing.meanRadiusMm * 0.25)).coerceAtLeast(0.0).toFloat()
             positionsList.add(0.0f)
+            positionsList.add(poleY)
             positionsList.add(0.0f)
-            positionsList.add(poleZ)
 
             val poleColor = firstRing.vertices.firstOrNull()?.colorHex ?: defaultColorHex
             val poleRgba = CrochetColorHelper.toRgbaFloats(poleColor)
@@ -148,6 +149,52 @@ object AdaptiveTessellator {
             }
         }
 
+        // 3. Vértices de espesor de pared interior para piezas con grosor de tensión (SM-083)
+        val hasInteriorWall = wallThicknessMm > 0f && validRings.isNotEmpty()
+        val innerIndices = if (hasInteriorWall) {
+            Array(validRings.size) { r -> IntArray(validRings[r].vertexCount) }
+        } else {
+            emptyArray()
+        }
+
+        if (hasInteriorWall) {
+            for (r in validRings.indices) {
+                val ring = validRings[r]
+                for (j in ring.vertices.indices) {
+                    val v = ring.vertices[j]
+                    val inIdx = currentOffset++
+                    innerIndices[r][j] = inIdx
+
+                    val rad = sqrt(v.x * v.x + v.z * v.z).toFloat()
+                    val inwardRatio = if (rad > wallThicknessMm) {
+                        (rad - wallThicknessMm) / rad
+                    } else {
+                        0.25f
+                    }
+                    val inX = (v.x * inwardRatio).toFloat()
+                    val inY = v.y.toFloat()
+                    val inZ = (v.z * inwardRatio).toFloat()
+
+                    positionsList.add(inX)
+                    positionsList.add(inY)
+                    positionsList.add(inZ)
+
+                    val vColor = v.colorHex ?: defaultColorHex
+                    val rgba = CrochetColorHelper.toRgbaFloats(vColor)
+                    colorsList.add(rgba[0] * 0.88f)
+                    colorsList.add(rgba[1] * 0.88f)
+                    colorsList.add(rgba[2] * 0.88f)
+                    colorsList.add(rgba[3])
+
+                    val localU = if (j % 2 == 0) 0.0f else 1.0f
+                    val localV = if (r % 2 == 0) 0.0f else 1.0f
+                    val atlasUv = CrochetTextureGenerator.computeAtlasUv(v.stitchType, localU, localV)
+                    uvsList.add(atlasUv[0])
+                    uvsList.add(atlasUv[1])
+                }
+            }
+        }
+
         val totalVertices = currentOffset
         val positions = FloatArray(positionsList.size) { positionsList[it] }
         val hasCustomColors = validRings.any { r ->
@@ -184,6 +231,39 @@ object AdaptiveTessellator {
             val r1In = inIndices[r + 1]
 
             tessellateRingPair(ring0, ring1, r0Out, r1In, indexList)
+        }
+
+        // 3c. Labio superior y pared interior si hasInteriorWall está activo (SM-083)
+        if (hasInteriorWall) {
+            val topIdx = validRings.size - 1
+            val topOuter = outIndices[topIdx]
+            val topInner = innerIndices[topIdx]
+            val nTop = validRings[topIdx].vertexCount
+            for (j in 0 until nTop) {
+                val nextJ = (j + 1) % nTop
+                val o0 = topOuter[j]
+                val o1 = topOuter[nextJ]
+                val i0 = topInner[j]
+                val i1 = topInner[nextJ]
+
+                // Normal hacia +Y en el labio superior
+                indexList.add(o0)
+                indexList.add(o1)
+                indexList.add(i1)
+
+                indexList.add(o0)
+                indexList.add(i1)
+                indexList.add(i0)
+            }
+
+            // Teselación de bandas de la pared interior (con normales hacia la cavidad interior)
+            for (r in 0 until validRings.size - 1) {
+                val ringLower = validRings[r]
+                val ringUpper = validRings[r + 1]
+                val lowerIn = innerIndices[r]
+                val upperIn = innerIndices[r + 1]
+                tessellateInteriorRingPair(ringUpper, ringLower, upperIn, lowerIn, indexList)
+            }
         }
 
         val indicesArray = IntArray(indexList.size) { indexList[it] }
@@ -274,11 +354,11 @@ object AdaptiveTessellator {
 
         val normals = FloatArray(vertexCount * 3)
 
-        // 1. Normal del vértice polar (apunta hacia el fondo exterior del casquete)
+        // 1. Normal del vértice polar (apunta hacia el fondo exterior del casquete en -Y)
         if (hasPole && vertexCount > 0) {
             normals[0] = 0.0f
-            normals[1] = 0.0f
-            normals[2] = -1.0f
+            normals[1] = -1.0f
+            normals[2] = 0.0f
         }
 
         // 2. Cálculo para cada anillo
@@ -289,23 +369,23 @@ object AdaptiveTessellator {
 
             val rPrev = prevRing?.meanRadiusMm ?: 0.0
             val rNext = nextRing?.meanRadiusMm ?: ring.meanRadiusMm
-            val zPrev = prevRing?.minZ ?: (validRings[0].minZ - validRings[0].meanRadiusMm * 0.25).coerceAtLeast(0.0)
-            val zNext = nextRing?.maxZ ?: ring.maxZ
+            val yPrev = prevRing?.minY ?: (validRings[0].minY - validRings[0].meanRadiusMm * 0.25).coerceAtLeast(0.0)
+            val yNext = nextRing?.maxY ?: ring.maxY
 
             val dr = rNext - rPrev
-            val dz = (zNext - zPrev).coerceAtLeast(0.05)
-            val pLen = sqrt(dr * dr + dz * dz).coerceAtLeast(1e-4)
-            val profCos = (dz / pLen).toFloat()
+            val dy = (yNext - yPrev).coerceAtLeast(0.05)
+            val pLen = sqrt(dr * dr + dy * dy).coerceAtLeast(1e-4)
+            val profCos = (dy / pLen).toFloat()
             val profSin = (-dr / pLen).toFloat()
 
             for (j in ring.vertices.indices) {
                 val v = ring.vertices[j]
                 val cosT = cos(v.theta).toFloat()
-                val sinT = sin(v.theta).toFloat()
+                val sinT = -sin(v.theta).toFloat()
 
                 val revNx = profCos * cosT
-                val revNy = profCos * sinT
-                val revNz = profSin
+                val revNy = profSin
+                val revNz = profCos * sinT
 
                 val inIdx = inIndices[r][j]
                 val outIdx = outIndices[r][j]
@@ -379,16 +459,28 @@ object AdaptiveTessellator {
             }
         }
 
-        // Si hubiera algún vértice no indexado por los anillos, asegurar normal unitaria
+        // Si hubiera algún vértice no indexado por los anillos exteriores (ej. pared interior o labio),
+        // normalizar directamente la normal acumulada de caras o asignar unitaria
         for (v in 0 until vertexCount) {
-            val nx = normals[v * 3]
-            val ny = normals[v * 3 + 1]
-            val nz = normals[v * 3 + 2]
+            val idx = v * 3
+            val nx = normals[idx]
+            val ny = normals[idx + 1]
+            val nz = normals[idx + 2]
             val len = sqrt(nx * nx + ny * ny + nz * nz)
             if (len < 1e-6f) {
-                normals[v * 3] = 0f
-                normals[v * 3 + 1] = 0f
-                normals[v * 3 + 2] = 1f
+                val fnx = faceNormalAccum[idx]
+                val fny = faceNormalAccum[idx + 1]
+                val fnz = faceNormalAccum[idx + 2]
+                val flen = sqrt(fnx * fnx + fny * fny + fnz * fnz)
+                if (flen > 1e-6f) {
+                    normals[idx] = fnx / flen
+                    normals[idx + 1] = fny / flen
+                    normals[idx + 2] = fnz / flen
+                } else {
+                    normals[idx] = 0f
+                    normals[idx + 1] = 1f
+                    normals[idx + 2] = 0f
+                }
             }
         }
 
@@ -475,6 +567,85 @@ object AdaptiveTessellator {
                     outIndices.add(p)
                     outIndices.add(cNext)
                     outIndices.add(cCurrent)
+                    j++
+                }
+            }
+        }
+    }
+
+    /**
+     * Tesela la pared interior cilíndrica entre dos anillos adyacentes con normales orientadas hacia la cavidad interior.
+     */
+    private fun tessellateInteriorRingPair(
+        ringUpper: RingProfile,
+        ringLower: RingProfile,
+        ringUpperIndices: IntArray,
+        ringLowerIndices: IntArray,
+        outIndices: ArrayList<Int>
+    ) {
+        val nUpper = ringUpper.vertexCount
+        val nLower = ringLower.vertexCount
+        if (nUpper == 0 || nLower == 0) return
+
+        if (nUpper == nLower) {
+            for (j in 0 until nUpper) {
+                val nextJ = (j + 1) % nUpper
+                val u0 = ringUpperIndices[j]
+                val u1 = ringUpperIndices[nextJ]
+                val l0 = ringLowerIndices[j]
+                val l1 = ringLowerIndices[nextJ]
+
+                // Winding CCW para que la normal apunte hacia la cavidad interior
+                outIndices.add(u0)
+                outIndices.add(l0)
+                outIndices.add(u1)
+
+                outIndices.add(u1)
+                outIndices.add(l0)
+                outIndices.add(l1)
+            }
+            return
+        }
+
+        var i = 0
+        var j = 0
+
+        while (i < nUpper || j < nLower) {
+            if (i == nUpper) {
+                val u = ringUpperIndices[i % nUpper]
+                val lCurrent = ringLowerIndices[j % nLower]
+                val lNext = ringLowerIndices[(j + 1) % nLower]
+                outIndices.add(u)
+                outIndices.add(lCurrent)
+                outIndices.add(lNext)
+                j++
+            } else if (j == nLower) {
+                val uCurrent = ringUpperIndices[i % nUpper]
+                val uNext = ringUpperIndices[(i + 1) % nUpper]
+                val l = ringLowerIndices[j % nLower]
+                outIndices.add(uCurrent)
+                outIndices.add(l)
+                outIndices.add(uNext)
+                i++
+            } else {
+                val nextAngle0 = (i + 1).toDouble() / nUpper
+                val nextAngle1 = (j + 1).toDouble() / nLower
+
+                if (nextAngle0 <= nextAngle1) {
+                    val uCurrent = ringUpperIndices[i % nUpper]
+                    val uNext = ringUpperIndices[(i + 1) % nUpper]
+                    val l = ringLowerIndices[j % nLower]
+                    outIndices.add(uCurrent)
+                    outIndices.add(l)
+                    outIndices.add(uNext)
+                    i++
+                } else {
+                    val u = ringUpperIndices[i % nUpper]
+                    val lCurrent = ringLowerIndices[j % nLower]
+                    val lNext = ringLowerIndices[(j + 1) % nLower]
+                    outIndices.add(u)
+                    outIndices.add(lCurrent)
+                    outIndices.add(lNext)
                     j++
                 }
             }
