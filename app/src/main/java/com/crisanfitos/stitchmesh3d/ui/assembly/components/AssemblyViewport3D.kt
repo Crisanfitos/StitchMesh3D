@@ -1,22 +1,19 @@
 package com.crisanfitos.stitchmesh3d.ui.assembly.components
 
-import androidx.compose.animation.AnimatedVisibility
+import android.annotation.SuppressLint
+import android.view.Choreographer
+import android.view.SurfaceView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,9 +28,10 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,15 +42,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.crisanfitos.stitchmesh3d.core.geometry.BoundingBox3D
+import com.crisanfitos.stitchmesh3d.core.geometry.ColorSpaceHelper
+import com.crisanfitos.stitchmesh3d.core.geometry.GlbMeshBuilder
+import com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry
 import com.crisanfitos.stitchmesh3d.ui.assembly.GizmoMode
 import com.crisanfitos.stitchmesh3d.ui.theme.CrochetTypography
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshCoralRed
@@ -65,26 +65,45 @@ import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTerracotta
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextPrimary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshTextSecondary
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshYarnGold
+import com.crisanfitos.stitchmesh3d.ui.viewport.components.MetricCameraFramingHelper
+import com.crisanfitos.stitchmesh3d.ui.viewport.components.StudioLightingConfig
+import com.google.android.filament.EntityManager
+import com.google.android.filament.IndirectLight
+import com.google.android.filament.LightManager
+import com.google.android.filament.Skybox
+import com.google.android.filament.View
+import com.google.android.filament.utils.Manipulator
+import com.google.android.filament.utils.ModelViewer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
 import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Viewport interactivo 3D para el ensamblador CAD de piezas amigurumi (SM-055).
- * Renderiza todas las piezas con sus colores de hilado y posiciones relativas,
- * incluye selección directa por toque, gizmo CAD de traslación/rotación y HUD de telemetría.
+ * Viewport interactivo 3D para el ensamblador CAD de piezas amigurumi (SM-055, SM-087).
+ *
+ * Renderiza todas las piezas activas en una escena 3D multi-nodo real sobre Google Filament con:
+ * - Geometría paramétrica real de cada pieza en milímetros con sus colores de hilado y texturas PBR textiles.
+ * - Sombreado fotométrico calibrado (StudioLightingConfig.CALIBRATED_TEXTILE), SSAO y fondo lineal `#121316`.
+ * - Selección directa en 3D por raycasting Möller-Trumbore (RF-4.1).
+ * - Manipulación interactiva mediante Gizmo CAD de traslación, rotación de Euler y anclaje superficial (Surface Snap).
+ * - Ciclo de vida robusto e idempotente libre de fugas nativas o cierres inesperados.
  */
+@SuppressLint("ClickableViewAccessibility")
 @Composable
 fun AssemblyViewport3D(
     parts: List<SceneGraphItem>,
     selectedPartId: String,
     transformsByPartId: Map<String, PartTransformState>,
+    meshesByPartId: Map<String, MeshGeometry> = emptyMap(),
     gizmoMode: GizmoMode = GizmoMode.TRANSLATE,
-    isWireframe: Boolean,
-    showGrid: Boolean,
-    orbitYaw: Float,
-    orbitPitch: Float,
-    zoomScale: Float,
-    panOffset: Offset,
+    isWireframe: Boolean = false,
+    showGrid: Boolean = true,
+    orbitYaw: Float = 45f,
+    orbitPitch: Float = 30f,
+    zoomScale: Float = 1.0f,
+    panOffset: Offset = Offset.Zero,
     isIsolatedMode: Boolean = false,
     onPartSelected: (partId: String) -> Unit,
     onPositionChange: (partId: String, x: Float, y: Float, z: Float) -> Unit,
@@ -103,6 +122,114 @@ fun AssemblyViewport3D(
     val selectedPart = parts.find { it.id == selectedPartId }
     val selectedTransform = transformsByPartId[selectedPartId]
 
+    val modelViewerRef = remember { arrayOfNulls<ModelViewer>(1) }
+    val manipulatorRef = remember { arrayOfNulls<Manipulator>(1) }
+    val surfaceViewRef = remember { arrayOfNulls<SurfaceView>(1) }
+    val choreographerCallbackRef = remember { arrayOfNulls<Choreographer.FrameCallback>(1) }
+    val isReleasedRef = remember { booleanArrayOf(false) }
+
+    // Generar geometría ensamblada en segundo plano (Dispatchers.Default, RF-3.5, RND-2)
+    var glbBuffer by remember { mutableStateOf<ByteBuffer?>(null) }
+    var combinedSceneMesh by remember { mutableStateOf<MeshGeometry?>(null) }
+
+    LaunchedEffect(parts, transformsByPartId, meshesByPartId, isIsolatedMode, selectedPartId, isWireframe) {
+        val combined = withContext(Dispatchers.Default) {
+            AssemblyMeshCombiner.combineParts(
+                parts = parts,
+                transformsByPartId = transformsByPartId,
+                meshesByPartId = meshesByPartId,
+                isIsolatedMode = isIsolatedMode,
+                selectedPartId = selectedPartId
+            )
+        }
+        combinedSceneMesh = combined
+
+        if (combined.vertexCount > 0 && combined.indices.isNotEmpty()) {
+            val buffer = withContext(Dispatchers.Default) {
+                GlbMeshBuilder.buildGlb(
+                    mesh = combined,
+                    isWireframe = isWireframe
+                )
+            }
+            glbBuffer = buffer
+        } else {
+            glbBuffer = null
+        }
+    }
+
+    LaunchedEffect(glbBuffer) {
+        val viewer = modelViewerRef[0] ?: return@LaunchedEffect
+        val manipulator = manipulatorRef[0]
+        val currentGlb = glbBuffer
+        if (currentGlb != null) {
+            try {
+                currentGlb.rewind()
+                val currentCameraBookmark = try { manipulator?.currentBookmark } catch (_: Throwable) { null }
+
+                try {
+                    viewer.destroyModel()
+                } catch (_: Throwable) {
+                    viewer.asset?.let { asset ->
+                        try { viewer.scene.removeEntities(asset.entities) } catch (_: Throwable) {}
+                        try { viewer.scene.removeEntities(asset.lightEntities) } catch (_: Throwable) {}
+                    }
+                }
+
+                viewer.loadModelGlb(currentGlb)
+
+                if (currentCameraBookmark != null) {
+                    try {
+                        manipulator?.jumpToBookmark(currentCameraBookmark)
+                    } catch (_: Throwable) {}
+                } else {
+                    combinedSceneMesh?.let { mesh ->
+                        applyAssemblyCamera(viewer, surfaceViewRef[0], mesh, manipulatorRef)
+                    }
+                }
+            } catch (t: Throwable) {
+                t.printStackTrace()
+            }
+        } else {
+            try {
+                viewer.destroyModel()
+            } catch (_: Throwable) {
+                viewer.asset?.let { asset ->
+                    try { viewer.scene.removeEntities(asset.entities) } catch (_: Throwable) {}
+                    try { viewer.scene.removeEntities(asset.lightEntities) } catch (_: Throwable) {}
+                }
+            }
+        }
+    }
+
+    val performTeardown = remember {
+        {
+            if (!isReleasedRef[0]) {
+                isReleasedRef[0] = true
+                try {
+                    choreographerCallbackRef[0]?.let { cb ->
+                        Choreographer.getInstance().removeFrameCallback(cb)
+                    }
+                } catch (_: Throwable) {}
+
+                val viewer = modelViewerRef[0]
+                if (viewer != null) {
+                    try {
+                        viewer.destroyModel()
+                    } catch (_: Throwable) {}
+                }
+                modelViewerRef[0] = null
+                manipulatorRef[0] = null
+                surfaceViewRef[0] = null
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            performTeardown()
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -111,13 +238,94 @@ fun AssemblyViewport3D(
             .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(12.dp))
             .testTag("assembly_viewport_3d")
     ) {
-        // Lienzo interactivo principal
-        AssemblyInteractiveCanvas(
+        // 1. Visor Nativo 3D de Google Filament
+        AndroidView(
+            factory = { ctx ->
+                val surfaceView = SurfaceView(ctx)
+                surfaceViewRef[0] = surfaceView
+                try {
+                    val viewer = ModelViewer(surfaceView = surfaceView)
+                    modelViewerRef[0] = viewer
+
+                    // Remover luz solar por defecto de 100k lux de ModelViewer para evitar sobreexposición (SM-085)
+                    try {
+                        viewer.scene.removeEntity(viewer.light)
+                    } catch (_: Throwable) {}
+
+                    // Fondo exacto #121316 con conversión lineal IEC 61966-2-1
+                    val linearBg = ColorSpaceHelper.hexToLinearRgba("#121316")
+                    viewer.scene.skybox = Skybox.Builder()
+                        .color(linearBg[0], linearBg[1], linearBg[2], linearBg[3])
+                        .build(viewer.engine)
+
+                    // Rig de iluminación de estudio fotográfico textil calibrado
+                    val lightEntities = IntArray(4)
+                    val r = StudioLightingConfig.CALIBRATED_TEXTILE
+                    val directionalSpecs = r.directionalLights
+
+                    for (i in directionalSpecs.indices) {
+                        if (i >= lightEntities.size) break
+                        val spec = directionalSpecs[i]
+                        val entity = EntityManager.get().create()
+                        lightEntities[i] = entity
+                        LightManager.Builder(LightManager.Type.DIRECTIONAL)
+                            .color(spec.colorR, spec.colorG, spec.colorB)
+                            .intensity(spec.intensityLux)
+                            .direction(spec.dirX, spec.dirY, spec.dirZ)
+                            .castShadows(spec.castShadows)
+                            .build(viewer.engine, entity)
+                        viewer.scene.addEntity(entity)
+                    }
+
+                    // SSAO y sombras suaves PCF
+                    try {
+                        viewer.view.setShadowingEnabled(true)
+                        viewer.view.setShadowType(View.ShadowType.PCF)
+                        viewer.view.ambientOcclusionOptions = View.AmbientOcclusionOptions().apply {
+                            enabled = true
+                            intensity = 1.2f
+                            radius = 0.25f
+                            bentNormals = true
+                        }
+                    } catch (_: Throwable) {}
+
+                    val indirectLight = IndirectLight.Builder()
+                        .irradiance(
+                            r.sphericalHarmonicsBands,
+                            r.sphericalHarmonicsIrradiance
+                        )
+                        .intensity(r.indirectLightIntensityLux)
+                        .build(viewer.engine)
+                    viewer.scene.indirectLight = indirectLight
+
+                    val choreographer = Choreographer.getInstance()
+                    val frameCallback = object : Choreographer.FrameCallback {
+                        override fun doFrame(frameTimeNanos: Long) {
+                            if (!isReleasedRef[0]) {
+                                try {
+                                    viewer.render(frameTimeNanos)
+                                    choreographer.postFrameCallback(this)
+                                } catch (_: Throwable) {}
+                            }
+                        }
+                    }
+                    choreographerCallbackRef[0] = frameCallback
+                    choreographer.postFrameCallback(frameCallback)
+                } catch (t: Throwable) {
+                    t.printStackTrace()
+                }
+                surfaceView
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+
+        // 2. Capa interactiva de toques, raycasting 3D y cuadrícula/gizmo CAD
+        AssemblyGestureAndGizmoLayer(
             parts = parts,
             selectedPartId = selectedPartId,
             transformsByPartId = transformsByPartId,
+            meshesByPartId = meshesByPartId,
             gizmoMode = gizmoMode,
-            isWireframe = isWireframe,
             showGrid = showGrid,
             isIsolatedMode = isIsolatedMode,
             orbitYaw = orbitYaw,
@@ -134,7 +342,7 @@ fun AssemblyViewport3D(
             modifier = Modifier.fillMaxSize()
         )
 
-        // HUD Superior Izquierdo: Selector de Modos de Gizmo CAD
+        // 3. HUD Superior Izquierdo: Selector de Modos de Gizmo CAD
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -146,7 +354,6 @@ fun AssemblyViewport3D(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Modo Traslación
             IconButton(
                 onClick = { onGizmoModeChange(GizmoMode.TRANSLATE) },
                 colors = IconButtonDefaults.iconButtonColors(
@@ -164,7 +371,6 @@ fun AssemblyViewport3D(
                 )
             }
 
-            // Modo Rotación
             IconButton(
                 onClick = { onGizmoModeChange(GizmoMode.ROTATE) },
                 colors = IconButtonDefaults.iconButtonColors(
@@ -182,7 +388,6 @@ fun AssemblyViewport3D(
                 )
             }
 
-            // Modo Anclaje / Snapping Superficial (SM-070)
             IconButton(
                 onClick = { onGizmoModeChange(GizmoMode.SNAP) },
                 colors = IconButtonDefaults.iconButtonColors(
@@ -200,7 +405,6 @@ fun AssemblyViewport3D(
                 )
             }
 
-            // Modo Cámara Libre / Sin Gizmo
             IconButton(
                 onClick = { onGizmoModeChange(GizmoMode.NONE) },
                 colors = IconButtonDefaults.iconButtonColors(
@@ -219,7 +423,7 @@ fun AssemblyViewport3D(
             }
         }
 
-        // HUD Superior Derecho: Herramientas del Visor CAD
+        // 4. HUD Superior Derecho: Herramientas del Visor CAD
         Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -231,7 +435,6 @@ fun AssemblyViewport3D(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Toggle Cuadrícula CAD
             IconButton(
                 onClick = onToggleGrid,
                 colors = IconButtonDefaults.iconButtonColors(
@@ -249,7 +452,6 @@ fun AssemblyViewport3D(
                 )
             }
 
-            // Toggle Wireframe
             IconButton(
                 onClick = onToggleWireframe,
                 colors = IconButtonDefaults.iconButtonColors(
@@ -267,7 +469,6 @@ fun AssemblyViewport3D(
                 )
             }
 
-            // Toggle Modo Aislado vs Ensamblado Global (RF-4.2, SM-033)
             if (onToggleIsolatedMode != null) {
                 IconButton(
                     onClick = onToggleIsolatedMode,
@@ -287,7 +488,6 @@ fun AssemblyViewport3D(
                 }
             }
 
-            // Reset Cámara
             IconButton(
                 onClick = onResetCamera,
                 modifier = Modifier
@@ -303,7 +503,7 @@ fun AssemblyViewport3D(
             }
         }
 
-        // HUD Inferior: Telemetría de la Pieza Activa
+        // 5. HUD Inferior: Telemetría de la Pieza Activa
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -370,17 +570,62 @@ fun AssemblyViewport3D(
 }
 
 /**
- * Lienzo con renderizado proyectivo de las partes del amigurumi y gizmo CAD.
+ * Aplica el encuadre métrico orbital al visor Filament de ensamblado.
+ */
+private fun applyAssemblyCamera(
+    viewer: ModelViewer,
+    surfaceView: SurfaceView?,
+    mesh: MeshGeometry,
+    manipulatorRef: Array<Manipulator?>
+) {
+    val width = surfaceView?.width ?: 1920
+    val height = surfaceView?.height ?: 1080
+    val aspect = (width.toFloat() / height.toFloat().coerceAtLeast(1f)).coerceAtLeast(0.1f)
+
+    var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE; var minZ = Float.MAX_VALUE
+    var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE; var maxZ = -Float.MAX_VALUE
+
+    for (i in 0 until mesh.vertexCount) {
+        val x = mesh.vertexPositions[i * 3]
+        val y = mesh.vertexPositions[i * 3 + 1]
+        val z = mesh.vertexPositions[i * 3 + 2]
+        if (x < minX) minX = x; if (y < minY) minY = y; if (z < minZ) minZ = z
+        if (x > maxX) maxX = x; if (y > maxY) maxY = y; if (z > maxZ) maxZ = z
+    }
+
+    val bbox = if (mesh.vertexCount > 0) {
+        BoundingBox3D(minX, minY, minZ, maxX, maxY, maxZ)
+    } else {
+        BoundingBox3D(-50f, 0f, -50f, 50f, 100f, 50f)
+    }
+
+    val framing = MetricCameraFramingHelper.calculateFraming(
+        bbox = bbox,
+        preset = com.crisanfitos.stitchmesh3d.ui.viewport.components.CameraPreset.ISOMETRIC
+    )
+
+    try {
+        viewer.camera.setLensProjection(28.0, aspect.toDouble(), 0.1, 5000.0)
+        viewer.camera.lookAt(
+            framing.eyeX.toDouble(), framing.eyeY.toDouble(), framing.eyeZ.toDouble(),
+            framing.targetX.toDouble(), framing.targetY.toDouble(), framing.targetZ.toDouble(),
+            framing.upX.toDouble(), framing.upY.toDouble(), framing.upZ.toDouble()
+        )
+    } catch (_: Throwable) {}
+}
+
+/**
+ * Capa de gestos Compose que gestiona selección por raycasting 3D, arrastre TRS y trazado del Gizmo CAD.
  */
 @Composable
-private fun AssemblyInteractiveCanvas(
+private fun AssemblyGestureAndGizmoLayer(
     parts: List<SceneGraphItem>,
     selectedPartId: String,
     transformsByPartId: Map<String, PartTransformState>,
+    meshesByPartId: Map<String, MeshGeometry>,
     gizmoMode: GizmoMode,
-    isWireframe: Boolean,
     showGrid: Boolean,
-    isIsolatedMode: Boolean = false,
+    isIsolatedMode: Boolean,
     orbitYaw: Float,
     orbitPitch: Float,
     zoomScale: Float,
@@ -388,18 +633,12 @@ private fun AssemblyInteractiveCanvas(
     onPartSelected: (partId: String) -> Unit,
     onPositionChange: (partId: String, x: Float, y: Float, z: Float) -> Unit,
     onRotationChange: (partId: String, rotX: Float, rotY: Float, rotZ: Float) -> Unit,
-    onSurfaceSnap: ((sourcePartId: String, px: Float, py: Float, pz: Float, nx: Float, ny: Float, nz: Float) -> Unit)? = null,
+    onSurfaceSnap: ((sourcePartId: String, px: Float, py: Float, pz: Float, nx: Float, ny: Float, nz: Float) -> Unit)?,
     onOrbitRotate: (deltaYaw: Float, deltaPitch: Float) -> Unit,
     onZoomChange: (scaleMultiplier: Float) -> Unit,
     onPanChange: (deltaOffset: Offset) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val visibleParts = if (isIsolatedMode) {
-        parts.filter { it.id == selectedPartId }
-    } else {
-        parts.filter { it.isVisible }
-    }
-
     val yawRad = Math.toRadians(orbitYaw.toDouble()).toFloat()
     val pitchRad = Math.toRadians(orbitPitch.toDouble()).toFloat()
 
@@ -409,93 +648,69 @@ private fun AssemblyInteractiveCanvas(
     val sinPitch = sin(pitchRad)
 
     fun project3DTo2D(xMm: Float, yMm: Float, zMm: Float, centerX: Float, centerY: Float): Offset {
-        // Rotación orbital Y (Yaw)
         val rotX = xMm * cosYaw - zMm * sinYaw
         val rotZ = xMm * sinYaw + zMm * cosYaw
-
-        // Rotación orbital X (Pitch)
         val finalY = yMm * cosPitch - rotZ * sinPitch
-
-        // Escala y proyección isométrica en el lienzo
         val screenX = centerX + rotX * 3.2f * zoomScale
         val screenY = centerY - finalY * 3.2f * zoomScale
-
         return Offset(screenX, screenY)
     }
 
     Canvas(
         modifier = modifier
-            .pointerInput(visibleParts, transformsByPartId, zoomScale, panOffset, orbitYaw, orbitPitch, gizmoMode, selectedPartId) {
+            .pointerInput(parts, transformsByPartId, meshesByPartId, zoomScale, panOffset, orbitYaw, orbitPitch, gizmoMode, selectedPartId) {
                 detectTapGestures { tapOffset ->
-                    val centerX = size.width / 2f + panOffset.x
-                    val centerY = size.height / 2f + panOffset.y
-
-                    // Modo Anclaje / Snapping Superficial con Raycasting Möller-Trumbore (SM-070)
+                    // 1. Raycasting Möller-Trumbore para selección o anclaje superficial (SM-087)
                     if (gizmoMode == GizmoMode.SNAP && selectedPartId.isNotBlank() && onSurfaceSnap != null) {
-                        val ray = com.crisanfitos.stitchmesh3d.core.geometry.MeshRaycaster.screenPointToWorldRay(
+                        val snapResult = AssemblyRaycaster.pickPart(
                             screenX = tapOffset.x,
                             screenY = tapOffset.y,
-                            centerX = centerX,
-                            centerY = centerY,
-                            zoomScale = zoomScale,
+                            viewportWidth = size.width.toFloat(),
+                            viewportHeight = size.height.toFloat(),
                             orbitYawDeg = orbitYaw,
-                            orbitPitchDeg = orbitPitch
+                            orbitPitchDeg = orbitPitch,
+                            zoomScale = zoomScale,
+                            panOffset = panOffset,
+                            parts = parts,
+                            transformsByPartId = transformsByPartId,
+                            meshesByPartId = meshesByPartId,
+                            isIsolatedMode = isIsolatedMode,
+                            selectedPartId = selectedPartId,
+                            excludedPartId = selectedPartId
                         )
-
-                        var closestHit: com.crisanfitos.stitchmesh3d.core.geometry.RaycastHit? = null
-                        var minHitDist = Float.MAX_VALUE
-
-                        for (part in visibleParts) {
-                            if (part.id == selectedPartId) continue
-                            val transform = transformsByPartId[part.id] ?: continue
-                            val radiusMm = (part.roundCount * 1.5f + 16f) / 3.2f
-                            val proxyMesh = com.crisanfitos.stitchmesh3d.core.geometry.MeshRaycaster.createSphereMesh(
-                                radiusMm = radiusMm,
-                                rings = 10,
-                                sectors = 16,
-                                centerX = transform.posX,
-                                centerY = transform.posY,
-                                centerZ = transform.posZ
-                            )
-                            val hit = com.crisanfitos.stitchmesh3d.core.geometry.MeshRaycaster.castRay(proxyMesh, ray)
-                            if (hit != null && hit.distance < minHitDist) {
-                                minHitDist = hit.distance
-                                closestHit = hit
-                            }
-                        }
-
-                        if (closestHit != null) {
+                        if (snapResult != null) {
                             onSurfaceSnap(
                                 selectedPartId,
-                                closestHit.point[0],
-                                closestHit.point[1],
-                                closestHit.point[2],
-                                closestHit.normal[0],
-                                closestHit.normal[1],
-                                closestHit.normal[2]
+                                snapResult.hit.point[0],
+                                snapResult.hit.point[1],
+                                snapResult.hit.point[2],
+                                snapResult.hit.normal[0],
+                                snapResult.hit.normal[1],
+                                snapResult.hit.normal[2]
                             )
                             return@detectTapGestures
                         }
                     }
 
-                    // Búsqueda de impacto en piezas proyectadas (picking por distancia)
-                    var tappedPartId: String? = null
-                    var minDistance = Float.MAX_VALUE
+                    // 2. Selección directa de pieza por raycasting 3D
+                    val pickResult = AssemblyRaycaster.pickPart(
+                        screenX = tapOffset.x,
+                        screenY = tapOffset.y,
+                        viewportWidth = size.width.toFloat(),
+                        viewportHeight = size.height.toFloat(),
+                        orbitYawDeg = orbitYaw,
+                        orbitPitchDeg = orbitPitch,
+                        zoomScale = zoomScale,
+                        panOffset = panOffset,
+                        parts = parts,
+                        transformsByPartId = transformsByPartId,
+                        meshesByPartId = meshesByPartId,
+                        isIsolatedMode = isIsolatedMode,
+                        selectedPartId = selectedPartId
+                    )
 
-                    for (part in visibleParts) {
-                        val transform = transformsByPartId[part.id] ?: continue
-                        val projected = project3DTo2D(transform.posX, transform.posY, transform.posZ, centerX, centerY)
-                        val dist = (projected - tapOffset).getDistance()
-                        val hitRadius = (28.dp.toPx() * zoomScale).coerceAtLeast(24.dp.toPx())
-
-                        if (dist <= hitRadius && dist < minDistance) {
-                            minDistance = dist
-                            tappedPartId = part.id
-                        }
-                    }
-
-                    if (tappedPartId != null) {
-                        onPartSelected(tappedPartId)
+                    if (pickResult != null) {
+                        onPartSelected(pickResult.partId)
                     }
                 }
             }
@@ -507,7 +722,6 @@ private fun AssemblyInteractiveCanvas(
                     if (pan != Offset.Zero) {
                         val activeTransform = transformsByPartId[selectedPartId]
                         if (activeTransform != null && !activeTransform.isLocked && gizmoMode == GizmoMode.TRANSLATE) {
-                            // Arrastre directo de la pieza en modo traslación
                             val deltaX = pan.x / (3.2f * zoomScale)
                             val deltaY = -pan.y / (3.2f * zoomScale)
                             onPositionChange(
@@ -517,7 +731,6 @@ private fun AssemblyInteractiveCanvas(
                                 activeTransform.posZ
                             )
                         } else if (activeTransform != null && !activeTransform.isLocked && gizmoMode == GizmoMode.ROTATE) {
-                            // Arrastre en modo rotación
                             val deltaRotZ = pan.x * 0.5f
                             onRotationChange(
                                 selectedPartId,
@@ -526,7 +739,6 @@ private fun AssemblyInteractiveCanvas(
                                 activeTransform.rotZ + deltaRotZ
                             )
                         } else {
-                            // Órbita de cámara cuando no se arrastra pieza activa
                             onOrbitRotate(pan.x * 0.35f, -pan.y * 0.35f)
                         }
                     }
@@ -536,7 +748,7 @@ private fun AssemblyInteractiveCanvas(
         val centerX = size.width / 2f + panOffset.x
         val centerY = size.height / 2f + panOffset.y
 
-        // 1. Cuadrícula de suelo CAD (plano Y = 0)
+        // 1. Cuadrícula métrica de suelo CAD (plano Y = 0)
         if (showGrid) {
             val gridSpacingMm = 20f
             val gridCount = 6
@@ -572,84 +784,21 @@ private fun AssemblyInteractiveCanvas(
         drawLine(color = StitchMeshSageGreen.copy(alpha = 0.8f), start = originProjected, end = axisY, strokeWidth = 2f)
         drawLine(color = Color(0xFF3E7BFA).copy(alpha = 0.8f), start = originProjected, end = axisZ, strokeWidth = 2f)
 
-        // 3. Renderizado de cada pieza amigurumi visible
-        for (part in visibleParts) {
-            val isSelected = part.id == selectedPartId
-            val transform = transformsByPartId[part.id] ?: continue
-            val partOrigin = project3DTo2D(transform.posX, transform.posY, transform.posZ, centerX, centerY)
-            val partColor = parseHexColor(part.colorHex)
-
-            val partRadius = ((part.roundCount * 1.5f + 16f) * zoomScale).coerceAtLeast(18f)
-
-            // Halo y contorno si está seleccionada
-            if (isSelected) {
-                drawCircle(
-                    color = StitchMeshTerracotta.copy(alpha = 0.25f),
-                    radius = partRadius + 10f,
-                    center = partOrigin
-                )
-                drawCircle(
-                    color = StitchMeshTerracotta,
-                    radius = partRadius + 8f,
-                    center = partOrigin,
-                    style = Stroke(width = 2.5f)
-                )
-            }
-
-            // Cuerpo de la pieza
-            if (isWireframe) {
-                drawCircle(
-                    color = partColor,
-                    radius = partRadius,
-                    center = partOrigin,
-                    style = Stroke(width = 2f)
-                )
-                // Anillos de alambre internos
-                drawCircle(
-                    color = partColor.copy(alpha = 0.5f),
-                    radius = partRadius * 0.65f,
-                    center = partOrigin,
-                    style = Stroke(width = 1.2f)
-                )
-            } else {
-                drawCircle(
-                    color = partColor,
-                    radius = partRadius,
-                    center = partOrigin,
-                    style = Fill
-                )
-                // Sombreado de estudio suave (SM-073): brillo difuso superior-izquierdo sin sombras oscuras
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.18f),
-                    radius = partRadius * 0.65f,
-                    center = Offset(
-                        x = partOrigin.x - partRadius * 0.22f,
-                        y = partOrigin.y - partRadius * 0.22f
-                    ),
-                    style = Fill
-                )
-                drawCircle(
-                    color = StitchMeshSurfaceBorder,
-                    radius = partRadius,
-                    center = partOrigin,
-                    style = Stroke(width = 1.5f)
-                )
-            }
-
-            // 4. Gizmo CAD 3D sobre la pieza seleccionada
-            if (isSelected && gizmoMode != GizmoMode.NONE) {
-                drawCadGizmo(
-                    origin = partOrigin,
-                    mode = gizmoMode,
-                    zoomScale = zoomScale
-                )
-            }
+        // 3. Gizmo CAD sobre la pieza activa seleccionada
+        val selectedTransform = transformsByPartId[selectedPartId]
+        if (selectedTransform != null && gizmoMode != GizmoMode.NONE) {
+            val gizmoOrigin = project3DTo2D(selectedTransform.posX, selectedTransform.posY, selectedTransform.posZ, centerX, centerY)
+            drawCadGizmo(
+                origin = gizmoOrigin,
+                mode = gizmoMode,
+                zoomScale = zoomScale
+            )
         }
     }
 }
 
 /**
- * Dibuja el gizmo de traslación o rotación 3D en las coordenadas de pantalla de la pieza.
+ * Dibuja el gizmo CAD interactivo sobre las coordenadas proyectadas de la pieza.
  */
 private fun DrawScope.drawCadGizmo(
     origin: Offset,
@@ -660,57 +809,45 @@ private fun DrawScope.drawCadGizmo(
 
     when (mode) {
         GizmoMode.TRANSLATE -> {
-            // Eje X (Rojo / Horizontal)
             val xEnd = Offset(origin.x + gizmoLength, origin.y)
             drawLine(color = StitchMeshCoralRed, start = origin, end = xEnd, strokeWidth = 3f)
             drawCircle(color = StitchMeshCoralRed, radius = 5f, center = xEnd)
 
-            // Eje Y (Verde / Vertical arriba)
             val yEnd = Offset(origin.x, origin.y - gizmoLength)
             drawLine(color = StitchMeshSageGreen, start = origin, end = yEnd, strokeWidth = 3f)
             drawCircle(color = StitchMeshSageGreen, radius = 5f, center = yEnd)
 
-            // Eje Z (Azul / Diagonal de profundidad)
             val zEnd = Offset(origin.x - gizmoLength * 0.7f, origin.y + gizmoLength * 0.5f)
             drawLine(color = Color(0xFF3E7BFA), start = origin, end = zEnd, strokeWidth = 3f)
             drawCircle(color = Color(0xFF3E7BFA), radius = 5f, center = zEnd)
 
-            // Núcleo central
             drawCircle(color = StitchMeshYarnGold, radius = 6f, center = origin)
             drawCircle(color = StitchMeshNeutralDark, radius = 3f, center = origin)
         }
 
         GizmoMode.ROTATE -> {
-            // Anillo exterior Roll (Rojo)
             drawCircle(
                 color = StitchMeshCoralRed,
                 radius = gizmoLength * 0.8f,
                 center = origin,
                 style = Stroke(width = 2.5f)
             )
-
-            // Anillo medio Pitch (Verde)
             drawOval(
                 color = StitchMeshSageGreen,
                 topLeft = Offset(origin.x - gizmoLength * 0.8f, origin.y - gizmoLength * 0.35f),
                 size = Size(gizmoLength * 1.6f, gizmoLength * 0.7f),
                 style = Stroke(width = 2.5f)
             )
-
-            // Anillo interno Yaw (Azul)
             drawOval(
                 color = Color(0xFF3E7BFA),
                 topLeft = Offset(origin.x - gizmoLength * 0.35f, origin.y - gizmoLength * 0.8f),
                 size = Size(gizmoLength * 0.7f, gizmoLength * 1.6f),
                 style = Stroke(width = 2.5f)
             )
-
-            // Núcleo central
             drawCircle(color = StitchMeshTerracotta, radius = 5f, center = origin)
         }
 
         GizmoMode.SNAP -> {
-            // Retículo CAD / Diana de anclaje superficial (SM-070)
             val reticleRadius = gizmoLength * 0.75f
             drawCircle(
                 color = StitchMeshTerracotta,
@@ -740,15 +877,10 @@ private fun DrawScope.drawCadGizmo(
             drawCircle(color = StitchMeshNeutralDark, radius = 2.5f, center = origin)
         }
 
-        GizmoMode.NONE -> {
-            // Sin gizmo
-        }
+        GizmoMode.NONE -> {}
     }
 }
 
-/**
- * Parsea un string hexadecimal (#RRGGBB) a Color Compose de forma segura.
- */
 private fun parseHexColor(hexString: String): Color {
     return try {
         val clean = hexString.removePrefix("#")

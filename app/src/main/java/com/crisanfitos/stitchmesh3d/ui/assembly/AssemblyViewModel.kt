@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import com.crisanfitos.stitchmesh3d.core.mvi.BaseViewModel
 import com.crisanfitos.stitchmesh3d.domain.model.PartTopologyType
 import com.crisanfitos.stitchmesh3d.domain.model.ProjectPart
+import com.crisanfitos.stitchmesh3d.ui.assembly.components.AssemblyMeshCombiner
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.PartTransformState
 import com.crisanfitos.stitchmesh3d.ui.assembly.components.SceneGraphItem
 import com.crisanfitos.stitchmesh3d.ui.workspace.ProjectAssemblySnapshot
@@ -396,13 +397,18 @@ class AssemblyViewModel @Inject constructor() :
             sceneItems.firstOrNull()?.id ?: ""
         }
 
+        val meshes = sceneItems.associate { part ->
+            part.id to AssemblyMeshCombiner.createDefaultPartMesh(part)
+        }
+
         setState {
             copy(
                 projectId = projectId,
                 projectTitle = snapshot.projectTitle,
                 parts = sceneItems,
                 transformsByPartId = resolvedTransforms,
-                selectedPartId = nextSelected
+                selectedPartId = nextSelected,
+                meshesByPartId = meshes
             )
         }
         ProjectPartsSessionStore.publishFromAssembly(
@@ -511,11 +517,16 @@ class AssemblyViewModel @Inject constructor() :
             "part-leg-right" to PartTransformState("part-leg-right", "Pierna Derecha", 15f, -35f, 0f)
         )
 
+        val initialMeshes = defaultParts.associate { part ->
+            part.id to AssemblyMeshCombiner.createDefaultPartMesh(part)
+        }
+
         setState {
             copy(
                 parts = defaultParts,
                 transformsByPartId = defaultTransforms,
-                selectedPartId = "part-torso"
+                selectedPartId = "part-torso",
+                meshesByPartId = initialMeshes
             )
         }
     }
