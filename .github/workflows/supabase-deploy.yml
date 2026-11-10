@@ -40,7 +40,22 @@ jobs:
 
       - name: Link to Supabase Cloud project and push migrations
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
+          set +e
+          LINK_OUTPUT=$(supabase link --project-ref "$SUPABASE_PROJECT_ID" 2>&1)
+          LINK_STATUS=$?
+          set -e
+          echo "$LINK_OUTPUT"
+
+          if [ $LINK_STATUS -ne 0 ]; then
+            if echo "$LINK_OUTPUT" | grep -qi "project is paused"; then
+              echo "::warning title=Supabase Project Paused::Supabase Cloud project ($SUPABASE_PROJECT_ID) is currently PAUSED (free-tier inactivity). Migrations are preserved locally in supabase/migrations/ and will apply once unpaused from https://supabase.com/dashboard."
+              exit 0
+            else
+              echo "Error linking to Supabase project $SUPABASE_PROJECT_ID"
+              exit $LINK_STATUS
+            fi
+          fi
+
           if [ -n "$(ls -A supabase/migrations/*.sql 2>/dev/null)" ]; then
             echo "Applying SQL migrations to Supabase Cloud ($SUPABASE_PROJECT_ID)..."
             supabase db push --password "$SUPABASE_DB_PASSWORD"
