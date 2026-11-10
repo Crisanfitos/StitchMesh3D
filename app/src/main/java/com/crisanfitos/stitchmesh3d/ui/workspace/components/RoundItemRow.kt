@@ -68,7 +68,8 @@ data class RoundItemUiModel(
     val isValid: Boolean = true,
     val errorMessage: String? = null,
     val isHighlighted: Boolean = false,
-    val colorHex: String? = null
+    val colorHex: String? = null,
+    val expectedBaseStitches: Int = 0
 )
 
 /**

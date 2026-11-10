@@ -37,6 +37,12 @@ object CrochetLexer {
         RegexOption.IGNORE_CASE
     )
 
+    // Regex para prefijo de Anillo Mágico que precede a un corchete de conteo de puntos (ej. "AM [8]", "MR [6]")
+    private val magicRingOpenPrefixRegex = Regex(
+        """^(?:anillo\s*m[aá]gico|magic\s*ring|am|mr)\s*(?:de\s*)?$""",
+        RegexOption.IGNORE_CASE
+    )
+
     /**
      * Analiza una línea de texto de vuelta y genera su representación tokenizada.
      */
@@ -69,11 +75,15 @@ object CrochetLexer {
             startIndex = headerMatch.range.last + 1
         }
 
-        // 2. Extraer recuento final declarado si existe al final
+        // 2. Extraer recuento final declarado si existe al final (evitando colisión con "AM [8]")
         val declaredMatch = declaredCountRegex.find(rawLine)
         if (declaredMatch != null && declaredMatch.range.first >= startIndex) {
-            declaredCount = declaredMatch.groupValues[1].toInt()
-            endIndex = declaredMatch.range.first
+            val textBefore = rawLine.substring(startIndex, declaredMatch.range.first).trim()
+            val isMagicRingBracketCount = magicRingOpenPrefixRegex.matches(textBefore)
+            if (!isMagicRingBracketCount) {
+                declaredCount = declaredMatch.groupValues[1].toInt()
+                endIndex = declaredMatch.range.first
+            }
         }
 
         // 3. Tokenizar el cuerpo de la instrucción entre startIndex y endIndex
@@ -303,6 +313,11 @@ object CrochetLexer {
             // Palabras clave de multiplicación: "veces", "times"
             if (word.equals("veces", ignoreCase = true) || word.equals("times", ignoreCase = true)) {
                 tokens.add(CrochetToken.Multiply(offset + wordStart, offset + cursor))
+                continue
+            }
+
+            // Directivas de giro o cambio de sentido en tejido plano (ej. "girar", "turn", "voltear")
+            if (word.equals("girar", ignoreCase = true) || word.equals("turn", ignoreCase = true) || word.equals("voltear", ignoreCase = true)) {
                 continue
             }
 

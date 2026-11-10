@@ -223,8 +223,13 @@ fun AdaptiveWorkspaceScaffold(
                                         listOf(inst.copy(colorHex = inst.colorHex ?: r.colorHex ?: partColor))
                                     }
                                 } ?: emptyList()
+                                val repeatCount = if (parsed.ast?.header?.isRange == true) {
+                                    (parsed.ast.header.endRound - parsed.ast.header.startRound + 1).coerceAtLeast(1)
+                                } else 1
                                 if (instances.isNotEmpty()) {
-                                    allRoundInstances.add(instances)
+                                    repeat(repeatCount) {
+                                        allRoundInstances.add(instances)
+                                    }
                                 }
                             }
                             if (allRoundInstances.isNotEmpty()) {
@@ -263,15 +268,20 @@ fun AdaptiveWorkspaceScaffold(
                                     }
                                 } ?: emptyList()
                                 if (instances.isNotEmpty()) {
-                                    val ring = RingProfileGenerator.generateRingFromInstances(
-                                        roundIndex = idx + 1,
-                                        instances = instances,
-                                        gaugeStandard = gauge,
-                                        previousRing = prevRing,
-                                        isContinuousSpiral = true
-                                    )
-                                    ringProfiles.add(ring)
-                                    prevRing = ring
+                                    val repeatCount = if (parsed.ast?.header?.isRange == true) {
+                                        (parsed.ast.header.endRound - parsed.ast.header.startRound + 1).coerceAtLeast(1)
+                                    } else 1
+                                    repeat(repeatCount) {
+                                        val ring = RingProfileGenerator.generateRingFromInstances(
+                                            roundIndex = ringProfiles.size + 1,
+                                            instances = instances,
+                                            gaugeStandard = gauge,
+                                            previousRing = prevRing,
+                                            isContinuousSpiral = true
+                                        )
+                                        ringProfiles.add(ring)
+                                        prevRing = ring
+                                    }
                                 }
                             }
                             if (ringProfiles.isNotEmpty()) {
@@ -699,10 +709,16 @@ private fun RoundEditorPane(
 
                 // Tarjeta inline si la vuelta contiene error
                 if (!round.isValid && !round.errorMessage.isNullOrBlank()) {
-                    val sampleSuggestions = remember(round.rawInstruction) {
+                    val expectedBase = if (round.expectedBaseStitches > 0) {
+                        round.expectedBaseStitches
+                    } else {
+                        val roundIdx = sortedRounds.indexOfFirst { it.id == round.id }
+                        if (roundIdx > 0) sortedRounds[roundIdx - 1].producedStitches else 0
+                    }
+                    val sampleSuggestions = remember(round.rawInstruction, expectedBase) {
                         com.crisanfitos.stitchmesh3d.core.engine.validator.CorrectionAssistant.suggestCorrections(
                             rawLine = round.rawInstruction,
-                            previousRoundStitches = round.consumedStitches
+                            previousRoundStitches = expectedBase
                         )
                     }
 
@@ -713,7 +729,7 @@ private fun RoundEditorPane(
                             onApplySuggestion?.invoke(round.id, suggestion)
                         },
                         consumedStitches = round.consumedStitches,
-                        expectedBaseStitches = round.consumedStitches + 2 // Demostración de discrepancia
+                        expectedBaseStitches = expectedBase
                     )
                 }
             }

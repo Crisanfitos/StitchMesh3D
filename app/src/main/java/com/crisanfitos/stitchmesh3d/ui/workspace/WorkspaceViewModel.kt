@@ -246,14 +246,47 @@ class WorkspaceViewModel @Inject constructor(
             }
 
             is WorkspaceIntent.EditRoundInstruction -> {
-                val updatedRounds = _state.value.rounds.map { round ->
-                    if (round.id == intent.roundId) {
-                        round.copy(rawInstruction = intent.newInstruction)
+                val currentRounds = _state.value.rounds
+                val targetIndex = currentRounds.indexOfFirst { it.id == intent.roundId }
+                if (targetIndex != -1) {
+                    val targetRound = currentRounds[targetIndex]
+                    val lexerRes = com.crisanfitos.stitchmesh3d.core.engine.lexer.CrochetLexer.tokenize(intent.newInstruction)
+                    val header = lexerRes.roundHeader
+                    if (header != null && header.isRange && header.endRound > header.startRound) {
+                        // Expansión multi-vuelta (SM-090): V3-V6: 18 pb genera las 4 vueltas correspondientes
+                        val body = intent.newInstruction.substring(header.endIndex).trim().ifBlank { intent.newInstruction }
+                        val newRoundsList = mutableListOf<RoundItemUiModel>()
+                        for (rNum in header.startRound..header.endRound) {
+                            newRoundsList.add(
+                                RoundItemUiModel(
+                                    id = if (rNum == header.startRound) targetRound.id else "r$rNum",
+                                    roundNumber = rNum,
+                                    rawInstruction = "V$rNum: $body",
+                                    colorHex = targetRound.colorHex,
+                                    expectedBaseStitches = targetRound.expectedBaseStitches
+                                )
+                            )
+                        }
+                        val shiftedRemaining = currentRounds.subList(targetIndex + 1, currentRounds.size).mapIndexed { idx, remainingRound ->
+                            val shiftedNumber = header.endRound + 1 + idx
+                            remainingRound.copy(
+                                roundNumber = shiftedNumber,
+                                id = "r$shiftedNumber"
+                            )
+                        }
+                        val updatedRounds = currentRounds.take(targetIndex) + newRoundsList + shiftedRemaining
+                        syncPartRoundsAndRebuild(updatedRounds)
                     } else {
-                        round
+                        val updatedRounds = currentRounds.map { round ->
+                            if (round.id == intent.roundId) {
+                                round.copy(rawInstruction = intent.newInstruction)
+                            } else {
+                                round
+                            }
+                        }
+                        syncPartRoundsAndRebuild(updatedRounds)
                     }
                 }
-                syncPartRoundsAndRebuild(updatedRounds)
             }
 
             is WorkspaceIntent.ChangeRoundColor -> {
@@ -677,10 +710,14 @@ class WorkspaceViewModel @Inject constructor(
             val (validatedRounds, hasErrors, errorCount) = withContext(defaultDispatcher) {
                 var prevStitches = 0
                 var errorCounter = 0
+                val currentTopology = _state.value.parts.find { it.id == _state.value.selectedPartId }?.topologyType
+                    ?: PartTopologyType.CLOSED_FILLED
                 val validated = updatedRounds.mapIndexed { index, round ->
+                    val expectedBase = if (index == 0) 0 else prevStitches
                     val result = ArithmeticValidator.validateRound(
                         rawLine = round.rawInstruction,
-                        previousRoundStitches = if (index == 0) 0 else prevStitches
+                        previousRoundStitches = expectedBase,
+                        topologyType = currentTopology
                     )
                     if (!result.isValid) {
                         errorCounter++
@@ -690,7 +727,8 @@ class WorkspaceViewModel @Inject constructor(
                         consumedStitches = result.totalConsumed,
                         declaredStitches = result.declaredCount,
                         isValid = result.isValid,
-                        errorMessage = if (result.isValid) null else result.message
+                        errorMessage = if (result.isValid) null else result.message,
+                        expectedBaseStitches = expectedBase
                     )
                     if (result.isValid) {
                         prevStitches = result.totalProduced
@@ -752,7 +790,12 @@ class WorkspaceViewModel @Inject constructor(
                                     }
                                 } ?: emptyList()
                                 if (instances.isNotEmpty()) {
-                                    allRoundInstances.add(instances)
+                                    val repeatCount = if (parsed.ast?.header?.isRange == true) {
+                                        (parsed.ast.header.endRound - parsed.ast.header.startRound + 1).coerceAtLeast(1)
+                                    } else 1
+                                    repeat(repeatCount) {
+                                        allRoundInstances.add(instances)
+                                    }
                                 }
                             }
                             if (allRoundInstances.isNotEmpty()) {
@@ -793,15 +836,20 @@ class WorkspaceViewModel @Inject constructor(
                                 } ?: emptyList()
 
                                 if (instances.isNotEmpty()) {
-                                    val ring = RingProfileGenerator.generateRingFromInstances(
-                                        roundIndex = idx + 1,
-                                        instances = instances,
-                                        gaugeStandard = gauge,
-                                        previousRing = prevRing,
-                                        isContinuousSpiral = true
-                                    )
-                                    ringProfiles.add(ring)
-                                    prevRing = ring
+                                    val repeatCount = if (parsed.ast?.header?.isRange == true) {
+                                        (parsed.ast.header.endRound - parsed.ast.header.startRound + 1).coerceAtLeast(1)
+                                    } else 1
+                                    repeat(repeatCount) {
+                                        val ring = RingProfileGenerator.generateRingFromInstances(
+                                            roundIndex = ringProfiles.size + 1,
+                                            instances = instances,
+                                            gaugeStandard = gauge,
+                                            previousRing = prevRing,
+                                            isContinuousSpiral = true
+                                        )
+                                        ringProfiles.add(ring)
+                                        prevRing = ring
+                                    }
                                 }
                             }
                             if (ringProfiles.isNotEmpty()) {
