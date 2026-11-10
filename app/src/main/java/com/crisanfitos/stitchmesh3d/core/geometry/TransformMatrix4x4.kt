@@ -286,5 +286,51 @@ class TransformMatrix4x4(
             val s = scale(effSx, scaleY, scaleZ)
             return t * r * s
         }
+
+        /**
+         * Construye una matriz afín 4x4 a partir de un marco ortonormal (origen, base Tangente, Bitangente, Normal)
+         * y un vector de escala tridimensional (sx, sy, sz) en orden Column-Major (SM-086).
+         *
+         * Columna 0 = Tangente * sx
+         * Columna 1 = Bitangente * sy
+         * Columna 2 = Normal * sz
+         * Columna 3 = Origen
+         */
+        fun fromBasisAndOrigin(
+            origin: FloatArray,
+            tangent: FloatArray,
+            bitangent: FloatArray,
+            normal: FloatArray,
+            scaleX: Float = 1f,
+            scaleY: Float = 1f,
+            scaleZ: Float = 1f
+        ): TransformMatrix4x4 {
+            val m = FloatArray(16)
+            // Columna 0 (X basis / Tangente)
+            m[0] = tangent[0] * scaleX
+            m[1] = tangent[1] * scaleX
+            m[2] = tangent[2] * scaleX
+            m[3] = 0f
+
+            // Columna 1 (Y basis / Bitangente)
+            m[4] = bitangent[0] * scaleY
+            m[5] = bitangent[1] * scaleY
+            m[6] = bitangent[2] * scaleY
+            m[7] = 0f
+
+            // Columna 2 (Z basis / Normal)
+            m[8] = normal[0] * scaleZ
+            m[9] = normal[1] * scaleZ
+            m[10] = normal[2] * scaleZ
+            m[11] = 0f
+
+            // Columna 3 (Origen / Traslación)
+            m[12] = origin[0]
+            m[13] = origin[1]
+            m[14] = origin[2]
+            m[15] = 1f
+
+            return TransformMatrix4x4(m)
+        }
     }
 }

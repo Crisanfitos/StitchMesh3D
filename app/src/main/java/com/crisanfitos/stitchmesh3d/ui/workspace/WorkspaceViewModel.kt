@@ -9,6 +9,7 @@ import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnGaugeStandard
 import com.crisanfitos.stitchmesh3d.core.gauge.model.YarnWeightCategory
 import com.crisanfitos.stitchmesh3d.core.geometry.AdaptiveTessellator
 import com.crisanfitos.stitchmesh3d.core.geometry.PlanarMeshGenerator
+import com.crisanfitos.stitchmesh3d.core.geometry.ProceduralYarnLoopInstancer
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfile
 import com.crisanfitos.stitchmesh3d.core.geometry.RingProfileGenerator
 import com.crisanfitos.stitchmesh3d.core.geometry.StuffingInflationFilter
@@ -598,6 +599,11 @@ class WorkspaceViewModel @Inject constructor(
                 recalculateAndRebuildMesh(_state.value.rounds)
             }
 
+            is WorkspaceIntent.ToggleVolumetricYarn -> {
+                _state.update { it.copy(isVolumetricYarnEnabled = intent.enabled) }
+                recalculateAndRebuildMesh(_state.value.rounds)
+            }
+
             is WorkspaceIntent.ToggleFullscreen -> {
                 _state.update { it.copy(isFullscreenViewport = intent.isFullscreen) }
             }
@@ -737,7 +743,17 @@ class WorkspaceViewModel @Inject constructor(
                                 }
                             }
                             if (allRoundInstances.isNotEmpty()) {
-                                PlanarMeshGenerator.generatePlanarMesh(
+                                val volumetricMesh = if (_state.value.isVolumetricYarnEnabled) {
+                                    val frames = ProceduralYarnLoopInstancer.extractFramesFromPlanarRows(
+                                        rows = allRoundInstances,
+                                        gauge = gauge,
+                                        peelLimit = effectiveLimit,
+                                        defaultColorHex = partColor
+                                    )
+                                    ProceduralYarnLoopInstancer.buildVolumetricMesh(frames)
+                                } else null
+
+                                volumetricMesh ?: PlanarMeshGenerator.generatePlanarMesh(
                                     rounds = allRoundInstances,
                                     gauge = gauge,
                                     defaultColorHex = partColor
@@ -782,14 +798,24 @@ class WorkspaceViewModel @Inject constructor(
                                 } else {
                                     0f
                                 }
-                                val rawMesh = AdaptiveTessellator.tessellate(
+                                val volumetricMesh = if (_state.value.isVolumetricYarnEnabled) {
+                                    val frames = ProceduralYarnLoopInstancer.extractFramesFromRings(
+                                        rings = ringProfiles,
+                                        gauge = gauge,
+                                        peelLimit = effectiveLimit,
+                                        defaultColorHex = partColor
+                                    )
+                                    ProceduralYarnLoopInstancer.buildVolumetricMesh(frames)
+                                } else null
+
+                                val rawMesh = volumetricMesh ?: AdaptiveTessellator.tessellate(
                                     rings = ringProfiles,
                                     includePolarCap = includePolarCap,
                                     defaultColorHex = partColor,
                                     wallThicknessMm = wallThicknessMm,
                                     decoupledStitchQuads = true
                                 )
-                                if (_state.value.isStuffingSimulationEnabled) {
+                                if (_state.value.isStuffingSimulationEnabled && volumetricMesh == null) {
                                     StuffingInflationFilter.applyInflation(rawMesh, currentTopology)
                                 } else {
                                     rawMesh
