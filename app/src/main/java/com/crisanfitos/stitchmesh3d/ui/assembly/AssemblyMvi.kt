@@ -1,6 +1,7 @@
 package com.crisanfitos.stitchmesh3d.ui.assembly
 
 import androidx.compose.ui.geometry.Offset
+import com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry
 import com.crisanfitos.stitchmesh3d.core.mvi.ViewEffect
 import com.crisanfitos.stitchmesh3d.core.mvi.ViewIntent
 import com.crisanfitos.stitchmesh3d.core.mvi.ViewState
@@ -41,7 +42,8 @@ data class AssemblyState(
     val partActionTarget: SceneGraphItem? = null,
     val showRenamePartDialog: Boolean = false,
     val showDeletePartDialog: Boolean = false,
-    val isIsolatedMode: Boolean = false
+    val isIsolatedMode: Boolean = false,
+    val meshesByPartId: Map<String, MeshGeometry> = emptyMap()
 ) : ViewState {
     val selectedPart: SceneGraphItem?
         get() = parts.find { it.id == selectedPartId }
