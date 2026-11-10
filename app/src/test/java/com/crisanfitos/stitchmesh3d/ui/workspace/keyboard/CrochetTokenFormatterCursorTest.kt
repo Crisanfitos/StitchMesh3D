@@ -27,8 +27,8 @@ class CrochetTokenFormatterCursorTest {
     @Test
     fun `insert in the middle keeps suffix and moves cursor`() {
         val (text, cursor) = CrochetTokenFormatter.insertTokenReplacingSelection("6 pb", "aum", 1, 1)
-        assertEquals("6 aum pb", text.replace("6aum", "6 aum"))
-        assertEquals(true, cursor > 1)
+        assertEquals("6 aum pb", text)
+        assertEquals(5, cursor)
     }
 
     @Test
