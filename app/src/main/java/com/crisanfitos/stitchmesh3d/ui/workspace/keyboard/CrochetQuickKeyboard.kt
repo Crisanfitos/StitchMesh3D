@@ -154,18 +154,18 @@ fun CrochetQuickKeyboard(
                 }
             }
 
-            // Fila 3: Fila numérica 0-9
+            // Fila 3: Fila numérica 0-9 distribuida responsivamente sin recorte
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 val numbers = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
                 numbers.forEach { num ->
                     CrochetKeyButton(
                         label = num,
-                        onClick = { onTokenInserted(num) }
+                        onClick = { onTokenInserted(num) },
+                        modifier = Modifier.weight(1f),
+                        minWidth = 20.dp
                     )
                 }
             }

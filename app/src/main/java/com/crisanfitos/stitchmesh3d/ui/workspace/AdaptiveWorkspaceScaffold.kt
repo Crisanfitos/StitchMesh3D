@@ -61,6 +61,8 @@ import com.crisanfitos.stitchmesh3d.ui.viewport.ViewportIntent
 import com.crisanfitos.stitchmesh3d.ui.viewport.ViewportViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.InterceptPlatformTextInput
+import kotlinx.coroutines.awaitCancellation
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -404,6 +406,7 @@ fun AdaptiveWorkspaceScaffold(
                                     onColorClick = { round ->
                                         colorPickerTargetRound = round
                                     },
+                                    isKeyboardVisible = isKeyboardVisible,
                                     modifier = Modifier.weight(1f)
                                 )
 
@@ -462,7 +465,7 @@ fun AdaptiveWorkspaceScaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = StitchMeshNeutralDark,
                     floatingActionButton = {
-                        if (!isFullscreenViewport && selectedTab == WorkspaceMobileTab.EDITOR) {
+                        if (!isFullscreenViewport && selectedTab == WorkspaceMobileTab.EDITOR && !isKeyboardVisible) {
                             FloatingActionButton(
                                 onClick = { selectedTab = WorkspaceMobileTab.VIEWPORT_3D },
                                 containerColor = StitchMeshTerracotta,
@@ -568,6 +571,7 @@ fun AdaptiveWorkspaceScaffold(
                                         onColorClick = { round ->
                                             colorPickerTargetRound = round
                                         },
+                                        isKeyboardVisible = isKeyboardVisible,
                                         modifier = Modifier.weight(1f)
                                     )
 
@@ -626,6 +630,7 @@ fun AdaptiveWorkspaceScaffold(
 /**
  * Contenedor de la lista de vueltas y botón de agregar.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun RoundEditorPane(
     rounds: List<RoundItemUiModel>,
@@ -639,101 +644,115 @@ private fun RoundEditorPane(
     externalEdit: RoundExternalEdit? = null,
     onDeleteRound: ((roundId: String) -> Unit)? = null,
     onApplySuggestion: ((roundId: String, suggestion: CorrectionSuggestion) -> Unit)? = null,
-    onColorClick: ((RoundItemUiModel) -> Unit)? = null
+    onColorClick: ((RoundItemUiModel) -> Unit)? = null,
+    isKeyboardVisible: Boolean = false
 ) {
-    // Vueltas ordenadas de forma descendente por número de vuelta (VN .. V1)
-    val sortedRounds = remember(rounds) {
-        rounds.sortedByDescending { it.roundNumber }
-    }
-
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        // Botón "Añadir Vuelta" en la cima para creación inmediata de nuevas vueltas
-        item(key = "add_round_action_top") {
-            Button(
-                onClick = onAddRound,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = StitchMeshSurfaceHigh,
-                    contentColor = StitchMeshTerracotta
-                ),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
-                    .testTag("add_round_btn")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Añadir Vuelta",
-                    style = CrochetTypography.tokenBadge,
-                    color = StitchMeshTerracotta
-                )
-            }
+    val editorContent = @Composable {
+        // Vueltas ordenadas de forma descendente por número de vuelta (VN .. V1)
+        val sortedRounds = remember(rounds) {
+            rounds.sortedByDescending { it.roundNumber }
         }
 
-        items(
-            items = sortedRounds,
-            key = { it.id }
-        ) { round ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                RoundItemRow(
-                    round = round.copy(isHighlighted = (round.id == activeRoundId)),
-                    requestInitialFocus = (round.id == newlyCreatedRoundId),
-                    onFocusRequested = onConsumeFocus,
-                    externalEdit = externalEdit,
-                    onInstructionChanged = { newText ->
-                        onRoundSelected(round.id)
-                        onInstructionChanged(round.id, newText)
-                    },
-                    onRowClicked = {
-                        onRoundSelected(round.id)
-                    },
-                    onColorClick = {
-                        onRoundSelected(round.id)
-                        onColorClick?.invoke(round)
-                    },
-                    onDeleteRound = if (onDeleteRound != null) {
-                        { onDeleteRound(round.id) }
-                    } else null
-                )
-
-                // Tarjeta inline si la vuelta contiene error
-                if (!round.isValid && !round.errorMessage.isNullOrBlank()) {
-                    val expectedBase = if (round.expectedBaseStitches > 0) {
-                        round.expectedBaseStitches
-                    } else {
-                        val roundIdx = sortedRounds.indexOfFirst { it.id == round.id }
-                        if (roundIdx > 0) sortedRounds[roundIdx - 1].producedStitches else 0
-                    }
-                    val sampleSuggestions = remember(round.rawInstruction, expectedBase) {
-                        com.crisanfitos.stitchmesh3d.core.engine.validator.CorrectionAssistant.suggestCorrections(
-                            rawLine = round.rawInstruction,
-                            previousRoundStitches = expectedBase
-                        )
-                    }
-
-                    LinterInlineErrorCard(
-                        errorMessage = round.errorMessage,
-                        suggestions = sampleSuggestions,
-                        onApplySuggestion = { suggestion ->
-                            onApplySuggestion?.invoke(round.id, suggestion)
-                        },
-                        consumedStitches = round.consumedStitches,
-                        expectedBaseStitches = expectedBase
+        LazyColumn(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Botón "Añadir Vuelta" en la cima para creación inmediata de nuevas vueltas
+            item(key = "add_round_action_top") {
+                Button(
+                    onClick = onAddRound,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = StitchMeshSurfaceHigh,
+                        contentColor = StitchMeshTerracotta
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))
+                        .testTag("add_round_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Añadir Vuelta",
+                        style = CrochetTypography.tokenBadge,
+                        color = StitchMeshTerracotta
                     )
                 }
             }
+
+            items(
+                items = sortedRounds,
+                key = { it.id }
+            ) { round ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    RoundItemRow(
+                        round = round.copy(isHighlighted = (round.id == activeRoundId)),
+                        requestInitialFocus = (round.id == newlyCreatedRoundId),
+                        onFocusRequested = onConsumeFocus,
+                        externalEdit = externalEdit,
+                        onInstructionChanged = { newText ->
+                            onRoundSelected(round.id)
+                            onInstructionChanged(round.id, newText)
+                        },
+                        onRowClicked = {
+                            onRoundSelected(round.id)
+                        },
+                        onColorClick = {
+                            onRoundSelected(round.id)
+                            onColorClick?.invoke(round)
+                        },
+                        onDeleteRound = if (onDeleteRound != null) {
+                            { onDeleteRound(round.id) }
+                        } else null
+                    )
+
+                    // Tarjeta inline si la vuelta contiene error
+                    if (!round.isValid && !round.errorMessage.isNullOrBlank()) {
+                        val expectedBase = if (round.expectedBaseStitches > 0) {
+                            round.expectedBaseStitches
+                        } else {
+                            val roundIdx = sortedRounds.indexOfFirst { it.id == round.id }
+                            if (roundIdx > 0) sortedRounds[roundIdx - 1].producedStitches else 0
+                        }
+                        val sampleSuggestions = remember(round.rawInstruction, expectedBase) {
+                            com.crisanfitos.stitchmesh3d.core.engine.validator.CorrectionAssistant.suggestCorrections(
+                                rawLine = round.rawInstruction,
+                                previousRoundStitches = expectedBase
+                            )
+                        }
+
+                        LinterInlineErrorCard(
+                            errorMessage = round.errorMessage,
+                            suggestions = sampleSuggestions,
+                            onApplySuggestion = { suggestion ->
+                                onApplySuggestion?.invoke(round.id, suggestion)
+                            },
+                            consumedStitches = round.consumedStitches,
+                            expectedBaseStitches = expectedBase
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    if (isKeyboardVisible) {
+        InterceptPlatformTextInput(
+            interceptor = { _, _ ->
+                awaitCancellation()
+            },
+            content = editorContent
+        )
+    } else {
+        editorContent()
     }
 }
 

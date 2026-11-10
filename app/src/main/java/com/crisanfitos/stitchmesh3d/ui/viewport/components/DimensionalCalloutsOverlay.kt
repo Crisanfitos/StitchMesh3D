@@ -174,11 +174,12 @@ fun DimensionalCalloutsOverlay(
                 }
             }
 
-            // 3. Chip flotante de Cota Horizontal (Diámetro / Ancho) en la parte inferior central
+            // 3. Chip flotante de Cota Horizontal (Diámetro / Ancho) en la parte inferior central,
+            // elevado 88dp para despejar el PeelSliderBar inferior sin colisiones visuales.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp)
+                    .padding(bottom = 88.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(StitchMeshSurfaceContainer.copy(alpha = 0.92f))
                     .border(1.dp, StitchMeshSurfaceBorder, RoundedCornerShape(8.dp))

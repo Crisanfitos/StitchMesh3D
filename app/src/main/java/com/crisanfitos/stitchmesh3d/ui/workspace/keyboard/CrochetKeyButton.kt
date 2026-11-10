@@ -50,7 +50,9 @@ fun CrochetKeyButton(
     modifier: Modifier = Modifier,
     isAccent: Boolean = false,
     icon: ImageVector? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    minWidth: androidx.compose.ui.unit.Dp = 40.dp,
+    minHeight: androidx.compose.ui.unit.Dp = 44.dp
 ) {
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -70,7 +72,7 @@ fun CrochetKeyButton(
     Box(
         modifier = modifier
             .testTag("key_token_${label}")
-            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+            .defaultMinSize(minWidth = minWidth, minHeight = minHeight)
             .clip(RoundedCornerShape(8.dp))
             .background(backgroundColor)
             .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(8.dp))
