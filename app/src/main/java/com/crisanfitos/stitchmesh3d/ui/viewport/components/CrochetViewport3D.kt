@@ -16,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
+import com.crisanfitos.stitchmesh3d.core.geometry.BoundingBox3D
+import com.crisanfitos.stitchmesh3d.core.geometry.ColorSpaceHelper
 import com.crisanfitos.stitchmesh3d.core.geometry.GlbMeshBuilder
 import com.crisanfitos.stitchmesh3d.core.geometry.MeshGeometry
 import com.crisanfitos.stitchmesh3d.ui.theme.StitchMeshNeutralDark
@@ -24,6 +26,7 @@ import com.google.android.filament.EntityManager
 import com.google.android.filament.IndirectLight
 import com.google.android.filament.LightManager
 import com.google.android.filament.Skybox
+import com.google.android.filament.View
 import com.google.android.filament.utils.GestureDetector
 import com.google.android.filament.utils.Manipulator
 import com.google.android.filament.utils.ModelViewer
@@ -48,10 +51,10 @@ fun CrochetViewport3D(
     meshGeometry: MeshGeometry?,
     modifier: Modifier = Modifier,
     yarnColor: Color = StitchMeshTerracotta,
-    roughness: Float = StudioLightingConfig.DEFAULT.defaultRoughness,
+    roughness: Float = StudioLightingConfig.CALIBRATED_TEXTILE.defaultRoughness,
     cameraPreset: CameraPreset = CameraPreset.ISOMETRIC,
     isWireframe: Boolean = false,
-    lightingConfig: StudioLightingConfig = StudioLightingConfig.DEFAULT
+    lightingConfig: StudioLightingConfig = StudioLightingConfig.CALIBRATED_TEXTILE
 ) {
     val modelViewerRef = remember { arrayOfNulls<ModelViewer>(1) }
     val manipulatorRef = remember { arrayOfNulls<Manipulator>(1) }
@@ -101,11 +104,13 @@ fun CrochetViewport3D(
                 }
 
                 viewer.loadModelGlb(currentGlb)
-                viewer.transformToUnitCube()
+                // Conservar escala métrica real en milímetros sin transformToUnitCube (SM-085)
                 if (currentCameraBookmark != null) {
                     try {
                         manipulator?.jumpToBookmark(currentCameraBookmark)
                     } catch (_: Throwable) {}
+                } else {
+                    applyCameraPreset(viewer, surfaceViewRef[0], cameraPreset, meshGeometry, manipulatorRef)
                 }
             } catch (t: Throwable) {
                 t.printStackTrace()
@@ -128,7 +133,7 @@ fun CrochetViewport3D(
     LaunchedEffect(cameraPreset) {
         val viewer = modelViewerRef[0] ?: return@LaunchedEffect
         val surfaceView = surfaceViewRef[0]
-        applyCameraPreset(viewer, surfaceView, cameraPreset, manipulatorRef)
+        applyCameraPreset(viewer, surfaceView, cameraPreset, meshGeometry, manipulatorRef)
     }
 
     // Teardown unificado e idempotente para evitar SIGSEGV en gltfio al navegar fuera del Workspace (SM-060)
@@ -194,9 +199,13 @@ fun CrochetViewport3D(
                 isReleasedRef[0] = false
                 SurfaceView(context).apply {
                     try {
+                        val initialBbox = meshGeometry?.computeBoundingBox() ?: BoundingBox3D(0f, 0f, 0f, 0f, 0f, 0f)
+                        val initialFraming = MetricCameraFramingHelper.calculateFraming(initialBbox, cameraPreset)
+
                         val manipulator = Manipulator.Builder()
-                            .targetPosition(0f, 0f, -4f)
-                            .orbitHomePosition(2.2f, 1.8f, -1.8f)
+                            .targetPosition(initialFraming.targetX, initialFraming.targetY, initialFraming.targetZ)
+                            .orbitHomePosition(initialFraming.eyeX, initialFraming.eyeY, initialFraming.eyeZ)
+                            .upVector(initialFraming.upX, initialFraming.upY, initialFraming.upZ)
                             .orbitSpeed(0.005f, 0.005f)
                             .zoomSpeed(0.01f)
                             .panning(true)
@@ -210,17 +219,34 @@ fun CrochetViewport3D(
                         )
                         modelViewerRef[0] = viewer
 
+                        // Eliminar la luz solar por defecto de ModelViewer (~100k lux) para evitar sobreexposición (SM-085)
+                        try {
+                            viewer.scene.removeEntity(viewer.light)
+                        } catch (_: Throwable) {}
+
                         // Habilitar interacción táctil de órbita 360°, zoom y paneo
                         setOnTouchListener(viewer)
 
-                        // Configurar color de fondo neutro oscuro (#121316 -> R: 0.07, G: 0.074, B: 0.086)
+                        // Configurar color de fondo neutro oscuro (#121316) convertido a espacio lineal IEC 61966-2-1 (SM-085)
+                        val linearBg = ColorSpaceHelper.hexToLinearRgba("#121316")
                         val skybox = Skybox.Builder()
-                            .color(0.07f, 0.074f, 0.086f, 1.0f)
+                            .color(linearBg[0], linearBg[1], linearBg[2], linearBg[3])
                             .build(viewer.engine)
                         viewer.scene.skybox = skybox
 
-                        // Configurar iluminación PBR de estudio balanceada y luz ambiental indirecta (SM-073)
-                        // 1. IndirectLight (Spherical Harmonics 3 bandas) para iluminar los surcos del tejido sin sombras negras
+                        // Configurar oclusión ambiental SSAO y sombras PCF en la vista (SM-085)
+                        try {
+                            viewer.view.setShadowingEnabled(true)
+                            viewer.view.setShadowType(View.ShadowType.PCF)
+                            viewer.view.ambientOcclusionOptions = View.AmbientOcclusionOptions().apply {
+                                enabled = true
+                                intensity = 1.2f
+                                radius = 0.25f
+                                bentNormals = true
+                            }
+                        } catch (_: Throwable) {}
+
+                        // Configurar iluminación PBR de estudio balanceada y luz ambiental indirecta (SM-073 / SM-085)
                         val indirectLight = IndirectLight.Builder()
                             .irradiance(
                                 lightingConfig.sphericalHarmonicsBands,
@@ -231,7 +257,7 @@ fun CrochetViewport3D(
                         viewer.scene.indirectLight = indirectLight
                         indirectLightRef[0] = indirectLight
 
-                        // 2. Rig envolvente de 4 luces direccionales de estudio (Sun/Key, Fill, Rim/Back, Bounce)
+                        // Rig envolvente de luces direccionales de estudio (Key con sombras, Fill, Rim, Bounce)
                         val lights = lightEntitiesRef[0]
                         val directionalSpecs = lightingConfig.directionalLights
                         for (i in directionalSpecs.indices) {
@@ -254,7 +280,7 @@ fun CrochetViewport3D(
                                 if (isReleasedRef[0]) return
                                 val cb = choreographerCallbackRef[0] ?: return
                                 try {
-                                    viewer.render(frameTimeNanos)
+                                     viewer.render(frameTimeNanos)
                                     if (!isReleasedRef[0]) {
                                         Choreographer.getInstance().postFrameCallback(cb)
                                     }
@@ -270,7 +296,8 @@ fun CrochetViewport3D(
                         if (initGlb != null) {
                             initGlb.rewind()
                             viewer.loadModelGlb(initGlb)
-                            viewer.transformToUnitCube()
+                            // Escala métrica real sin transformToUnitCube (SM-085)
+                            applyCameraPreset(viewer, this, cameraPreset, meshGeometry, manipulatorRef)
                         }
                     } catch (t: Throwable) {
                         t.printStackTrace()
@@ -292,24 +319,17 @@ fun CrochetViewport3D(
 
 /**
  * Aplica un preset orbital de cámara determinista (Frontal, Lateral, Superior, Iso, Reset)
- * actualizando el Manipulator y el GestureDetector de Filament para una rotación inmediata y reactiva (RF-3.3).
+ * en escala métrica real sobre las cotas físicas de la pieza (SM-085, RF-3.3).
  */
 private fun applyCameraPreset(
     viewer: ModelViewer,
     surfaceView: SurfaceView?,
     preset: CameraPreset,
+    meshGeometry: MeshGeometry?,
     manipulatorRef: Array<Manipulator?>
 ) {
-    val (eyeX, eyeY, eyeZ) = when (preset) {
-        CameraPreset.ISOMETRIC, CameraPreset.RESET -> floatArrayOf(2.2f, 1.8f, -1.8f)
-        CameraPreset.FRONT -> floatArrayOf(0f, 0f, -0.8f)
-        CameraPreset.SIDE -> floatArrayOf(3.2f, 0f, -4.0f)
-        CameraPreset.TOP -> floatArrayOf(0.001f, 3.2f, -4.0f)
-    }
-    val (upX, upY, upZ) = when (preset) {
-        CameraPreset.TOP -> floatArrayOf(0f, 0f, -1f)
-        else -> floatArrayOf(0f, 1f, 0f)
-    }
+    val bbox = meshGeometry?.computeBoundingBox() ?: BoundingBox3D(0f, 0f, 0f, 0f, 0f, 0f)
+    val framing = MetricCameraFramingHelper.calculateFraming(bbox, preset)
 
     if (surfaceView != null) {
         try {
@@ -317,9 +337,9 @@ private fun applyCameraPreset(
             val height = surfaceView.height.coerceAtLeast(1)
             val newManipulator = Manipulator.Builder()
                 .viewport(width, height)
-                .targetPosition(0f, 0f, -4f)
-                .orbitHomePosition(eyeX, eyeY, eyeZ)
-                .upVector(upX, upY, upZ)
+                .targetPosition(framing.targetX, framing.targetY, framing.targetZ)
+                .orbitHomePosition(framing.eyeX, framing.eyeY, framing.eyeZ)
+                .upVector(framing.upX, framing.upY, framing.upZ)
                 .zoomSpeed(0.01f)
                 .orbitSpeed(0.005f, 0.005f)
                 .panning(true)
@@ -342,9 +362,9 @@ private fun applyCameraPreset(
 
     try {
         viewer.camera.lookAt(
-            eyeX.toDouble(), eyeY.toDouble(), eyeZ.toDouble(),
-            0.0, 0.0, -4.0,
-            upX.toDouble(), upY.toDouble(), upZ.toDouble()
+            framing.eyeX.toDouble(), framing.eyeY.toDouble(), framing.eyeZ.toDouble(),
+            framing.targetX.toDouble(), framing.targetY.toDouble(), framing.targetZ.toDouble(),
+            framing.upX.toDouble(), framing.upY.toDouble(), framing.upZ.toDouble()
         )
     } catch (_: Throwable) {}
 }

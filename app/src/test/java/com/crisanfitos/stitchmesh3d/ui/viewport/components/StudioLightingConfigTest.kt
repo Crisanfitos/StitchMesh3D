@@ -82,4 +82,22 @@ class StudioLightingConfigTest {
             (minCardinal / maxCardinal) >= 0.40f
         )
     }
+
+    @Test
+    fun `calibrated textile studio lighting enables soft directional shadows and prevents blowout (SM-085)`() {
+        val config = StudioLightingConfig.CALIBRATED_TEXTILE
+
+        // Key light rasante con sombras activadas
+        assertTrue("Key light debe proyectar sombras para generar relieve textil", config.sunLight.castShadows)
+        assertTrue("Key light debe estar en rango fotométrico calibrado [60k..70k]", config.sunLight.intensityLux in 60_000f..70_000f)
+
+        // Relleno y rim cálido para sheen
+        assertFalse("Fill light no debe proyectar sombras", config.fillLight.castShadows)
+        assertTrue(config.fillLight.intensityLux in 15_000f..25_000f)
+        assertTrue(config.rimBackLight.intensityLux in 18_000f..26_000f)
+
+        // Evitar el lavado de más de 300.000 lux del rig anterior
+        val totalDirectLux = config.directionalLights.sumOf { it.intensityLux.toDouble() }.toFloat()
+        assertTrue("La suma total de luces directas no debe sobreexponer la escena ($totalDirectLux < 130.000 lux)", totalDirectLux < 130_000f)
+    }
 }
