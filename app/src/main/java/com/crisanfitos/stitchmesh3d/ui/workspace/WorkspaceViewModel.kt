@@ -786,7 +786,8 @@ class WorkspaceViewModel @Inject constructor(
                                     rings = ringProfiles,
                                     includePolarCap = includePolarCap,
                                     defaultColorHex = partColor,
-                                    wallThicknessMm = wallThicknessMm
+                                    wallThicknessMm = wallThicknessMm,
+                                    decoupledStitchQuads = true
                                 )
                                 if (_state.value.isStuffingSimulationEnabled) {
                                     StuffingInflationFilter.applyInflation(rawMesh, currentTopology)

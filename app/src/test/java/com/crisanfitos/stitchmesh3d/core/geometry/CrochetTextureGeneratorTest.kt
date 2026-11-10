@@ -154,4 +154,62 @@ class CrochetTextureGeneratorTest {
         assertTrue(seamColor[0] >= terracotta[0] * 0.35f)
         assertNotEquals(seamColor[0], crownColor[0], 0.01f)
     }
+
+    @Test
+    fun `evaluateGlyphNormal produces normalized unit tangent space vectors with positive Nz`() {
+        for (quadrant in StitchAtlasQuadrant.values()) {
+            for (lu in listOf(0.05f, 0.25f, 0.5f, 0.75f, 0.95f)) {
+                for (lv in listOf(0.05f, 0.25f, 0.5f, 0.75f, 0.95f)) {
+                    val normal = CrochetTextureGenerator.evaluateGlyphNormal(quadrant, lu, lv)
+                    assertEquals(3, normal.size)
+                    val len = kotlin.math.sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2])
+                    assertEquals("El vector normal en espacio tangente debe ser unitario", 1.0f, len, 0.01f)
+                    assertTrue("Nz debe ser estrictamente positivo para relieve saliente: ${normal[2]}", normal[2] > 0.0f)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `generateNormalMapRgba encodes tangent space normals into valid RGB channels`() {
+        val size = 64
+        val raw = CrochetTextureGenerator.generateNormalMapRgba(size, size)
+        assertEquals(size * size * 4, raw.size)
+
+        for (i in 0 until (size * size)) {
+            val r = raw[i * 4].toInt() and 0xFF
+            val g = raw[i * 4 + 1].toInt() and 0xFF
+            val b = raw[i * 4 + 2].toInt() and 0xFF
+            val a = raw[i * 4 + 3].toInt() and 0xFF
+
+            assertEquals("Alpha debe ser 255", 255, a)
+            // Canal B decodifica Nz = (b/255)*2 - 1. Como Nz > 0, b debe ser >= 127
+            assertTrue("Canal B de normal map debe ser >= 127 para Nz > 0: $b", b >= 127)
+        }
+
+        val png = CrochetTextureGenerator.defaultNormalMapPng
+        assertTrue("El PNG del normal map debe ser válido", png.size > 200)
+        assertEquals(0x89.toByte(), png[0])
+    }
+
+    @Test
+    fun `generateOcclusionRoughnessRgba encodes ambient occlusion and matte wool roughness`() {
+        val size = 64
+        val raw = CrochetTextureGenerator.generateOcclusionRoughnessRgba(size, size)
+        assertEquals(size * size * 4, raw.size)
+
+        for (i in 0 until (size * size)) {
+            val r = raw[i * 4].toInt() and 0xFF // Oclusión ambiental
+            val g = raw[i * 4 + 1].toInt() and 0xFF // Rugosidad
+            val b = raw[i * 4 + 2].toInt() and 0xFF // Metálico (0.0 para lana)
+
+            assertTrue("Oclusión ambiental R debe estar en rango [80..255]: $r", r in 80..255)
+            assertTrue("Rugosidad textil G debe ser mate alta [200..255]: $g", g in 200..255)
+            assertEquals("Metálico B debe ser 0 para hilados textiles", 0, b)
+        }
+
+        val png = CrochetTextureGenerator.defaultOcclusionRoughnessPng
+        assertTrue("El PNG ORM debe ser válido", png.size > 200)
+        assertEquals(0x89.toByte(), png[0])
+    }
 }

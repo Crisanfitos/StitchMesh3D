@@ -31,7 +31,8 @@ object AdaptiveTessellator {
         rings: List<RingProfile>,
         includePolarCap: Boolean = true,
         defaultColorHex: String = "#E06D53",
-        wallThicknessMm: Float = 0f
+        wallThicknessMm: Float = 0f,
+        decoupledStitchQuads: Boolean = false
     ): MeshGeometry {
         val validRings = rings.filter { it.vertexCount > 0 }
         if (validRings.isEmpty()) {
@@ -42,7 +43,17 @@ object AdaptiveTessellator {
                 triangleCount = 0,
                 vertexNormals = FloatArray(0),
                 vertexColors = FloatArray(0),
-                vertexUvs = FloatArray(0)
+                vertexUvs = FloatArray(0),
+                vertexTangents = FloatArray(0)
+            )
+        }
+
+        if (decoupledStitchQuads) {
+            return tessellateDecoupled(
+                validRings = validRings,
+                includePolarCap = includePolarCap,
+                defaultColorHex = defaultColorHex,
+                wallThicknessMm = wallThicknessMm
             )
         }
 
@@ -57,6 +68,7 @@ object AdaptiveTessellator {
         val positionsList = ArrayList<Float>()
         val colorsList = ArrayList<Float>()
         val uvsList = ArrayList<Float>()
+        val tangentsList = ArrayList<Float>()
 
         // 1. Vértice polar (índice 0 si está activo) en sistema Y-up estándar
         if (hasPole) {
@@ -81,6 +93,11 @@ object AdaptiveTessellator {
             }
             uvsList.add(poleUv[0])
             uvsList.add(poleUv[1])
+
+            tangentsList.add(1.0f)
+            tangentsList.add(0.0f)
+            tangentsList.add(0.0f)
+            tangentsList.add(1.0f)
             currentOffset = 1
         }
 
@@ -111,6 +128,14 @@ object AdaptiveTessellator {
                 val vCoord = atlasUv[1]
                 uvsList.add(u)
                 uvsList.add(vCoord)
+
+                val tx = -sin(v.theta).toFloat()
+                val ty = 0.0f
+                val tz = -cos(v.theta).toFloat()
+                tangentsList.add(tx)
+                tangentsList.add(ty)
+                tangentsList.add(tz)
+                tangentsList.add(1.0f)
                 currentOffset++
 
                 val nextRing = validRings.getOrNull(r + 1)
@@ -142,6 +167,11 @@ object AdaptiveTessellator {
 
                     uvsList.add(u)
                     uvsList.add(vCoord)
+
+                    tangentsList.add(tx)
+                    tangentsList.add(ty)
+                    tangentsList.add(tz)
+                    tangentsList.add(1.0f)
                     currentOffset++
                 } else {
                     outIndices[r][j] = inIdx
@@ -191,6 +221,14 @@ object AdaptiveTessellator {
                     val atlasUv = CrochetTextureGenerator.computeAtlasUv(v.stitchType, localU, localV)
                     uvsList.add(atlasUv[0])
                     uvsList.add(atlasUv[1])
+
+                    val tx = -sin(v.theta).toFloat()
+                    val ty = 0.0f
+                    val tz = -cos(v.theta).toFloat()
+                    tangentsList.add(tx)
+                    tangentsList.add(ty)
+                    tangentsList.add(tz)
+                    tangentsList.add(1.0f)
                 }
             }
         }
@@ -206,6 +244,7 @@ object AdaptiveTessellator {
             FloatArray(0)
         }
         val uvs = FloatArray(uvsList.size) { uvsList[it] }
+        val tangents = FloatArray(tangentsList.size) { tangentsList[it] }
 
         // 3. Generación del búfer de índices triangulados
         val indexList = ArrayList<Int>()
@@ -288,7 +327,356 @@ object AdaptiveTessellator {
             triangleCount = triangleCount,
             vertexNormals = normals,
             vertexColors = colors,
-            vertexUvs = uvs
+            vertexUvs = uvs,
+            vertexTangents = tangents
+        )
+    }
+
+    /**
+     * Tesela la malla emitiendo quads desacoplados por punto con UVs canónicas estrictamente confinadas
+     * al tile del atlas [0.0..1.0] x [0.0..1.0], eliminando el ping-pong UV, el sangrado diagonal
+     * y los artefactos de costura en números impares de puntos (SM-084).
+     */
+    private fun tessellateDecoupled(
+        validRings: List<RingProfile>,
+        includePolarCap: Boolean,
+        defaultColorHex: String,
+        wallThicknessMm: Float
+    ): MeshGeometry {
+        val positionsList = ArrayList<Float>()
+        val normalsList = ArrayList<Float>()
+        val colorsList = ArrayList<Float>()
+        val uvsList = ArrayList<Float>()
+        val tangentsList = ArrayList<Float>()
+        val indexList = ArrayList<Int>()
+        var vertexOffset = 0
+
+        val hasPole = includePolarCap && validRings.isNotEmpty()
+
+        // 1. Casquete polar con quads/triángulos desacoplados por puntada
+        if (hasPole) {
+            val ring0 = validRings.first()
+            val poleY = (ring0.minY - (ring0.meanRadiusMm * 0.25)).coerceAtLeast(0.0).toFloat()
+            val n0 = ring0.vertexCount
+
+            for (j in 0 until n0) {
+                val nextJ = (j + 1) % n0
+                val v0 = ring0.vertices[j]
+                val v1 = ring0.vertices[nextJ]
+                val stitch = v0.stitchType
+                val col0 = CrochetColorHelper.toRgbaFloats(v0.colorHex ?: defaultColorHex)
+                val col1 = CrochetColorHelper.toRgbaFloats(v1.colorHex ?: defaultColorHex)
+
+                // Vértice 0: Polo
+                val idxPole = vertexOffset++
+                positionsList.add(0.0f); positionsList.add(poleY); positionsList.add(0.0f)
+                normalsList.add(0.0f); normalsList.add(-1.0f); normalsList.add(0.0f)
+                colorsList.add(col0[0]); colorsList.add(col0[1]); colorsList.add(col0[2]); colorsList.add(col0[3])
+                val uvPole = CrochetTextureGenerator.computeAtlasUv(stitch, 0.5f, 0.0f)
+                uvsList.add(uvPole[0]); uvsList.add(uvPole[1])
+                tangentsList.add(1.0f); tangentsList.add(0.0f); tangentsList.add(0.0f); tangentsList.add(1.0f)
+
+                // Vértice 1: Siguiente perimetral (nextJ)
+                val idxNext = vertexOffset++
+                positionsList.add(v1.x.toFloat()); positionsList.add(v1.y.toFloat()); positionsList.add(v1.z.toFloat())
+                val cosT1 = cos(v1.theta).toFloat()
+                val sinT1 = -sin(v1.theta).toFloat()
+                normalsList.add(cosT1 * 0.707f); normalsList.add(-0.707f); normalsList.add(sinT1 * 0.707f)
+                colorsList.add(col1[0]); colorsList.add(col1[1]); colorsList.add(col1[2]); colorsList.add(col1[3])
+                val uvNext = CrochetTextureGenerator.computeAtlasUv(stitch, 1.0f, 1.0f)
+                uvsList.add(uvNext[0]); uvsList.add(uvNext[1])
+                tangentsList.add(sinT1); tangentsList.add(0.0f); tangentsList.add(-cosT1); tangentsList.add(1.0f)
+
+                // Vértice 2: Actual perimetral (j)
+                val idxCur = vertexOffset++
+                positionsList.add(v0.x.toFloat()); positionsList.add(v0.y.toFloat()); positionsList.add(v0.z.toFloat())
+                val cosT0 = cos(v0.theta).toFloat()
+                val sinT0 = -sin(v0.theta).toFloat()
+                normalsList.add(cosT0 * 0.707f); normalsList.add(-0.707f); normalsList.add(sinT0 * 0.707f)
+                colorsList.add(col0[0]); colorsList.add(col0[1]); colorsList.add(col0[2]); colorsList.add(col0[3])
+                val uvCur = CrochetTextureGenerator.computeAtlasUv(stitch, 0.0f, 1.0f)
+                uvsList.add(uvCur[0]); uvsList.add(uvCur[1])
+                tangentsList.add(sinT0); tangentsList.add(0.0f); tangentsList.add(-cosT0); tangentsList.add(1.0f)
+
+                indexList.add(idxPole)
+                indexList.add(idxNext)
+                indexList.add(idxCur)
+            }
+        }
+
+        // Helper para normal analítica
+        fun computeAnalyticalNormal(r: Int, v: RingVertex): FloatArray {
+            val ring = validRings[r]
+            val prevRing = if (r > 0) validRings[r - 1] else null
+            val nextRing = if (r < validRings.size - 1) validRings[r + 1] else null
+            val rPrev = prevRing?.meanRadiusMm ?: 0.0
+            val rNext = nextRing?.meanRadiusMm ?: ring.meanRadiusMm
+            val yPrev = prevRing?.minY ?: (validRings[0].minY - validRings[0].meanRadiusMm * 0.25).coerceAtLeast(0.0)
+            val yNext = nextRing?.maxY ?: ring.maxY
+            val dr = rNext - rPrev
+            val dy = (yNext - yPrev).coerceAtLeast(0.05)
+            val pLen = sqrt(dr * dr + dy * dy).coerceAtLeast(1e-4)
+            val profCos = (dy / pLen).toFloat()
+            val profSin = (-dr / pLen).toFloat()
+            val cosT = cos(v.theta).toFloat()
+            val sinT = -sin(v.theta).toFloat()
+            return floatArrayOf(profCos * cosT, profSin, profCos * sinT)
+        }
+
+        // 2. Bandas entre anillos consecutivos con Quads desacoplados por punto
+        for (r in 0 until validRings.size - 1) {
+            val ring0 = validRings[r]
+            val ring1 = validRings[r + 1]
+            val n0 = ring0.vertexCount
+            val n1 = ring1.vertexCount
+            if (n0 == 0 || n1 == 0) continue
+
+            if (n0 == n1) {
+                // Caso 1:1 isomorfo
+                for (j in 0 until n0) {
+                    val nextJ = (j + 1) % n0
+                    val v0 = ring0.vertices[j]
+                    val v1 = ring0.vertices[nextJ]
+                    val c0 = ring1.vertices[j]
+                    val c1 = ring1.vertices[nextJ]
+                    val stitch = v0.stitchType
+
+                    val col0 = CrochetColorHelper.toRgbaFloats(v0.colorHex ?: defaultColorHex)
+                    val col1 = CrochetColorHelper.toRgbaFloats(v1.colorHex ?: defaultColorHex)
+                    val colC0 = CrochetColorHelper.toRgbaFloats(c0.colorHex ?: defaultColorHex)
+                    val colC1 = CrochetColorHelper.toRgbaFloats(c1.colorHex ?: defaultColorHex)
+
+                    val normV0 = computeAnalyticalNormal(r, v0)
+                    val normV1 = computeAnalyticalNormal(r, v1)
+                    val normC0 = computeAnalyticalNormal(r + 1, c0)
+                    val normC1 = computeAnalyticalNormal(r + 1, c1)
+
+                    // BL: (v0) localU = 0.0, localV = 0.0
+                    val idxBL = vertexOffset++
+                    positionsList.add(v0.x.toFloat()); positionsList.add(v0.y.toFloat()); positionsList.add(v0.z.toFloat())
+                    normalsList.add(normV0[0]); normalsList.add(normV0[1]); normalsList.add(normV0[2])
+                    colorsList.add(col0[0]); colorsList.add(col0[1]); colorsList.add(col0[2]); colorsList.add(col0[3])
+                    val uvBL = CrochetTextureGenerator.computeAtlasUv(stitch, 0.0f, 0.0f)
+                    uvsList.add(uvBL[0]); uvsList.add(uvBL[1])
+                    tangentsList.add(-sin(v0.theta).toFloat()); tangentsList.add(0.0f); tangentsList.add(-cos(v0.theta).toFloat()); tangentsList.add(1.0f)
+
+                    // BR: (v1) localU = 1.0, localV = 0.0
+                    val idxBR = vertexOffset++
+                    positionsList.add(v1.x.toFloat()); positionsList.add(v1.y.toFloat()); positionsList.add(v1.z.toFloat())
+                    normalsList.add(normV1[0]); normalsList.add(normV1[1]); normalsList.add(normV1[2])
+                    colorsList.add(col1[0]); colorsList.add(col1[1]); colorsList.add(col1[2]); colorsList.add(col1[3])
+                    val uvBR = CrochetTextureGenerator.computeAtlasUv(stitch, 1.0f, 0.0f)
+                    uvsList.add(uvBR[0]); uvsList.add(uvBR[1])
+                    tangentsList.add(-sin(v1.theta).toFloat()); tangentsList.add(0.0f); tangentsList.add(-cos(v1.theta).toFloat()); tangentsList.add(1.0f)
+
+                    // TR: (c1) localU = 1.0, localV = 1.0
+                    val idxTR = vertexOffset++
+                    positionsList.add(c1.x.toFloat()); positionsList.add(c1.y.toFloat()); positionsList.add(c1.z.toFloat())
+                    normalsList.add(normC1[0]); normalsList.add(normC1[1]); normalsList.add(normC1[2])
+                    colorsList.add(colC1[0]); colorsList.add(colC1[1]); colorsList.add(colC1[2]); colorsList.add(colC1[3])
+                    val uvTR = CrochetTextureGenerator.computeAtlasUv(stitch, 1.0f, 1.0f)
+                    uvsList.add(uvTR[0]); uvsList.add(uvTR[1])
+                    tangentsList.add(-sin(c1.theta).toFloat()); tangentsList.add(0.0f); tangentsList.add(-cos(c1.theta).toFloat()); tangentsList.add(1.0f)
+
+                    // TL: (c0) localU = 0.0, localV = 1.0
+                    val idxTL = vertexOffset++
+                    positionsList.add(c0.x.toFloat()); positionsList.add(c0.y.toFloat()); positionsList.add(c0.z.toFloat())
+                    normalsList.add(normC0[0]); normalsList.add(normC0[1]); normalsList.add(normC0[2])
+                    colorsList.add(colC0[0]); colorsList.add(colC0[1]); colorsList.add(colC0[2]); colorsList.add(colC0[3])
+                    val uvTL = CrochetTextureGenerator.computeAtlasUv(stitch, 0.0f, 1.0f)
+                    uvsList.add(uvTL[0]); uvsList.add(uvTL[1])
+                    tangentsList.add(-sin(c0.theta).toFloat()); tangentsList.add(0.0f); tangentsList.add(-cos(c0.theta).toFloat()); tangentsList.add(1.0f)
+
+                    // Triángulo 1 (BL -> BR -> TL)
+                    indexList.add(idxBL); indexList.add(idxBR); indexList.add(idxTL)
+                    // Triángulo 2 (BR -> TR -> TL)
+                    indexList.add(idxBR); indexList.add(idxTR); indexList.add(idxTL)
+                }
+            } else {
+                // Caso asimétrico adaptativo general (aumentos / disminuciones)
+                var i = 0
+                var j = 0
+                while (i < n0 || j < n1) {
+                    if (i == n0) {
+                        val p = ring0.vertices[i % n0]
+                        val cCurrent = ring1.vertices[j % n1]
+                        val cNext = ring1.vertices[(j + 1) % n1]
+                        val stitch = cCurrent.stitchType
+                        val colP = CrochetColorHelper.toRgbaFloats(p.colorHex ?: defaultColorHex)
+                        val colC = CrochetColorHelper.toRgbaFloats(cCurrent.colorHex ?: defaultColorHex)
+                        val colCN = CrochetColorHelper.toRgbaFloats(cNext.colorHex ?: defaultColorHex)
+                        val normP = computeAnalyticalNormal(r, p)
+                        val normC = computeAnalyticalNormal(r + 1, cCurrent)
+                        val normCN = computeAnalyticalNormal(r + 1, cNext)
+
+                        val iP = vertexOffset++
+                        positionsList.add(p.x.toFloat()); positionsList.add(p.y.toFloat()); positionsList.add(p.z.toFloat())
+                        normalsList.add(normP[0]); normalsList.add(normP[1]); normalsList.add(normP[2])
+                        colorsList.add(colP[0]); colorsList.add(colP[1]); colorsList.add(colP[2]); colorsList.add(colP[3])
+                        val uvP = CrochetTextureGenerator.computeAtlasUv(stitch, 0.5f, 0.0f)
+                        uvsList.add(uvP[0]); uvsList.add(uvP[1])
+                        tangentsList.add(-sin(p.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(p.theta).toFloat()); tangentsList.add(1f)
+
+                        val iCN = vertexOffset++
+                        positionsList.add(cNext.x.toFloat()); positionsList.add(cNext.y.toFloat()); positionsList.add(cNext.z.toFloat())
+                        normalsList.add(normCN[0]); normalsList.add(normCN[1]); normalsList.add(normCN[2])
+                        colorsList.add(colCN[0]); colorsList.add(colCN[1]); colorsList.add(colCN[2]); colorsList.add(colCN[3])
+                        val uvCN = CrochetTextureGenerator.computeAtlasUv(stitch, 1.0f, 1.0f)
+                        uvsList.add(uvCN[0]); uvsList.add(uvCN[1])
+                        tangentsList.add(-sin(cNext.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(cNext.theta).toFloat()); tangentsList.add(1f)
+
+                        val iC = vertexOffset++
+                        positionsList.add(cCurrent.x.toFloat()); positionsList.add(cCurrent.y.toFloat()); positionsList.add(cCurrent.z.toFloat())
+                        normalsList.add(normC[0]); normalsList.add(normC[1]); normalsList.add(normC[2])
+                        colorsList.add(colC[0]); colorsList.add(colC[1]); colorsList.add(colC[2]); colorsList.add(colC[3])
+                        val uvC = CrochetTextureGenerator.computeAtlasUv(stitch, 0.0f, 1.0f)
+                        uvsList.add(uvC[0]); uvsList.add(uvC[1])
+                        tangentsList.add(-sin(cCurrent.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(cCurrent.theta).toFloat()); tangentsList.add(1f)
+
+                        indexList.add(iP); indexList.add(iCN); indexList.add(iC)
+                        j++
+                    } else if (j == n1) {
+                        val pCurrent = ring0.vertices[i % n0]
+                        val pNext = ring0.vertices[(i + 1) % n0]
+                        val c = ring1.vertices[j % n1]
+                        val stitch = pCurrent.stitchType
+                        val colP = CrochetColorHelper.toRgbaFloats(pCurrent.colorHex ?: defaultColorHex)
+                        val colPN = CrochetColorHelper.toRgbaFloats(pNext.colorHex ?: defaultColorHex)
+                        val colC = CrochetColorHelper.toRgbaFloats(c.colorHex ?: defaultColorHex)
+                        val normP = computeAnalyticalNormal(r, pCurrent)
+                        val normPN = computeAnalyticalNormal(r, pNext)
+                        val normC = computeAnalyticalNormal(r + 1, c)
+
+                        val iP = vertexOffset++
+                        positionsList.add(pCurrent.x.toFloat()); positionsList.add(pCurrent.y.toFloat()); positionsList.add(pCurrent.z.toFloat())
+                        normalsList.add(normP[0]); normalsList.add(normP[1]); normalsList.add(normP[2])
+                        colorsList.add(colP[0]); colorsList.add(colP[1]); colorsList.add(colP[2]); colorsList.add(colP[3])
+                        val uvP = CrochetTextureGenerator.computeAtlasUv(stitch, 0.0f, 0.0f)
+                        uvsList.add(uvP[0]); uvsList.add(uvP[1])
+                        tangentsList.add(-sin(pCurrent.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(pCurrent.theta).toFloat()); tangentsList.add(1f)
+
+                        val iPN = vertexOffset++
+                        positionsList.add(pNext.x.toFloat()); positionsList.add(pNext.y.toFloat()); positionsList.add(pNext.z.toFloat())
+                        normalsList.add(normPN[0]); normalsList.add(normPN[1]); normalsList.add(normPN[2])
+                        colorsList.add(colPN[0]); colorsList.add(colPN[1]); colorsList.add(colPN[2]); colorsList.add(colPN[3])
+                        val uvPN = CrochetTextureGenerator.computeAtlasUv(stitch, 1.0f, 0.0f)
+                        uvsList.add(uvPN[0]); uvsList.add(uvPN[1])
+                        tangentsList.add(-sin(pNext.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(pNext.theta).toFloat()); tangentsList.add(1f)
+
+                        val iC = vertexOffset++
+                        positionsList.add(c.x.toFloat()); positionsList.add(c.y.toFloat()); positionsList.add(c.z.toFloat())
+                        normalsList.add(normC[0]); normalsList.add(normC[1]); normalsList.add(normC[2])
+                        colorsList.add(colC[0]); colorsList.add(colC[1]); colorsList.add(colC[2]); colorsList.add(colC[3])
+                        val uvC = CrochetTextureGenerator.computeAtlasUv(stitch, 0.5f, 1.0f)
+                        uvsList.add(uvC[0]); uvsList.add(uvC[1])
+                        tangentsList.add(-sin(c.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(c.theta).toFloat()); tangentsList.add(1f)
+
+                        indexList.add(iP); indexList.add(iPN); indexList.add(iC)
+                        i++
+                    } else {
+                        val nextAngle0 = (i + 1).toDouble() / n0
+                        val nextAngle1 = (j + 1).toDouble() / n1
+                        if (nextAngle0 <= nextAngle1) {
+                            val pCurrent = ring0.vertices[i % n0]
+                            val pNext = ring0.vertices[(i + 1) % n0]
+                            val c = ring1.vertices[j % n1]
+                            val stitch = pCurrent.stitchType
+                            val colP = CrochetColorHelper.toRgbaFloats(pCurrent.colorHex ?: defaultColorHex)
+                            val colPN = CrochetColorHelper.toRgbaFloats(pNext.colorHex ?: defaultColorHex)
+                            val colC = CrochetColorHelper.toRgbaFloats(c.colorHex ?: defaultColorHex)
+                            val normP = computeAnalyticalNormal(r, pCurrent)
+                            val normPN = computeAnalyticalNormal(r, pNext)
+                            val normC = computeAnalyticalNormal(r + 1, c)
+
+                            val iP = vertexOffset++
+                            positionsList.add(pCurrent.x.toFloat()); positionsList.add(pCurrent.y.toFloat()); positionsList.add(pCurrent.z.toFloat())
+                            normalsList.add(normP[0]); normalsList.add(normP[1]); normalsList.add(normP[2])
+                            colorsList.add(colP[0]); colorsList.add(colP[1]); colorsList.add(colP[2]); colorsList.add(colP[3])
+                            val uvP = CrochetTextureGenerator.computeAtlasUv(stitch, 0.0f, 0.0f)
+                            uvsList.add(uvP[0]); uvsList.add(uvP[1])
+                            tangentsList.add(-sin(pCurrent.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(pCurrent.theta).toFloat()); tangentsList.add(1f)
+
+                            val iPN = vertexOffset++
+                            positionsList.add(pNext.x.toFloat()); positionsList.add(pNext.y.toFloat()); positionsList.add(pNext.z.toFloat())
+                            normalsList.add(normPN[0]); normalsList.add(normPN[1]); normalsList.add(normPN[2])
+                            colorsList.add(colPN[0]); colorsList.add(colPN[1]); colorsList.add(colPN[2]); colorsList.add(colPN[3])
+                            val uvPN = CrochetTextureGenerator.computeAtlasUv(stitch, 1.0f, 0.0f)
+                            uvsList.add(uvPN[0]); uvsList.add(uvPN[1])
+                            tangentsList.add(-sin(pNext.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(pNext.theta).toFloat()); tangentsList.add(1f)
+
+                            val iC = vertexOffset++
+                            positionsList.add(c.x.toFloat()); positionsList.add(c.y.toFloat()); positionsList.add(c.z.toFloat())
+                            normalsList.add(normC[0]); normalsList.add(normC[1]); normalsList.add(normC[2])
+                            colorsList.add(colC[0]); colorsList.add(colC[1]); colorsList.add(colC[2]); colorsList.add(colC[3])
+                            val uvC = CrochetTextureGenerator.computeAtlasUv(stitch, 0.5f, 1.0f)
+                            uvsList.add(uvC[0]); uvsList.add(uvC[1])
+                            tangentsList.add(-sin(c.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(c.theta).toFloat()); tangentsList.add(1f)
+
+                            indexList.add(iP); indexList.add(iPN); indexList.add(iC)
+                            i++
+                        } else {
+                            val p = ring0.vertices[i % n0]
+                            val cCurrent = ring1.vertices[j % n1]
+                            val cNext = ring1.vertices[(j + 1) % n1]
+                            val stitch = cCurrent.stitchType
+                            val colP = CrochetColorHelper.toRgbaFloats(p.colorHex ?: defaultColorHex)
+                            val colC = CrochetColorHelper.toRgbaFloats(cCurrent.colorHex ?: defaultColorHex)
+                            val colCN = CrochetColorHelper.toRgbaFloats(cNext.colorHex ?: defaultColorHex)
+                            val normP = computeAnalyticalNormal(r, p)
+                            val normC = computeAnalyticalNormal(r + 1, cCurrent)
+                            val normCN = computeAnalyticalNormal(r + 1, cNext)
+
+                            val iP = vertexOffset++
+                            positionsList.add(p.x.toFloat()); positionsList.add(p.y.toFloat()); positionsList.add(p.z.toFloat())
+                            normalsList.add(normP[0]); normalsList.add(normP[1]); normalsList.add(normP[2])
+                            colorsList.add(colP[0]); colorsList.add(colP[1]); colorsList.add(colP[2]); colorsList.add(colP[3])
+                            val uvP = CrochetTextureGenerator.computeAtlasUv(stitch, 0.5f, 0.0f)
+                            uvsList.add(uvP[0]); uvsList.add(uvP[1])
+                            tangentsList.add(-sin(p.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(p.theta).toFloat()); tangentsList.add(1f)
+
+                            val iCN = vertexOffset++
+                            positionsList.add(cNext.x.toFloat()); positionsList.add(cNext.y.toFloat()); positionsList.add(cNext.z.toFloat())
+                            normalsList.add(normCN[0]); normalsList.add(normCN[1]); normalsList.add(normCN[2])
+                            colorsList.add(colCN[0]); colorsList.add(colCN[1]); colorsList.add(colCN[2]); colorsList.add(colCN[3])
+                            val uvCN = CrochetTextureGenerator.computeAtlasUv(stitch, 1.0f, 1.0f)
+                            uvsList.add(uvCN[0]); uvsList.add(uvCN[1])
+                            tangentsList.add(-sin(cNext.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(cNext.theta).toFloat()); tangentsList.add(1f)
+
+                            val iC = vertexOffset++
+                            positionsList.add(cCurrent.x.toFloat()); positionsList.add(cCurrent.y.toFloat()); positionsList.add(cCurrent.z.toFloat())
+                            normalsList.add(normC[0]); normalsList.add(normC[1]); normalsList.add(normC[2])
+                            colorsList.add(colC[0]); colorsList.add(colC[1]); colorsList.add(colC[2]); colorsList.add(colC[3])
+                            val uvC = CrochetTextureGenerator.computeAtlasUv(stitch, 0.0f, 1.0f)
+                            uvsList.add(uvC[0]); uvsList.add(uvC[1])
+                            tangentsList.add(-sin(cCurrent.theta).toFloat()); tangentsList.add(0f); tangentsList.add(-cos(cCurrent.theta).toFloat()); tangentsList.add(1f)
+
+                            indexList.add(iP); indexList.add(iCN); indexList.add(iC)
+                            j++
+                        }
+                    }
+                }
+            }
+        }
+
+        val totalVertices = vertexOffset
+        val indicesArray = IntArray(indexList.size) { indexList[it] }
+        val triangleCount = indicesArray.size / 3
+
+        val positions = FloatArray(positionsList.size) { positionsList[it] }
+        val normals = FloatArray(normalsList.size) { normalsList[it] }
+        val colors = FloatArray(colorsList.size) { colorsList[it] }
+        val uvs = FloatArray(uvsList.size) { uvsList[it] }
+        val tangents = FloatArray(tangentsList.size) { tangentsList[it] }
+
+        return MeshGeometry(
+            vertexPositions = positions,
+            indices = indicesArray,
+            vertexCount = totalVertices,
+            triangleCount = triangleCount,
+            vertexNormals = normals,
+            vertexColors = colors,
+            vertexUvs = uvs,
+            vertexTangents = tangents
         )
     }
 

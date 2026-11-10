@@ -274,7 +274,8 @@ fun AdaptiveWorkspaceScaffold(
                                     rings = ringProfiles,
                                     includePolarCap = includePolarCap,
                                     defaultColorHex = partColor,
-                                    wallThicknessMm = wallThicknessMm
+                                    wallThicknessMm = wallThicknessMm,
+                                    decoupledStitchQuads = true
                                 )
                                 val mesh = StuffingInflationFilter.applyInflation(rawMesh, currentTopology)
                                 viewportViewModel.processIntent(ViewportIntent.SetMeshGeometry(mesh))
