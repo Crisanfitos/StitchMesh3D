@@ -9,7 +9,7 @@ StitchMesh 3D es un entorno de diseño CAD paramétrico y verificación formal d
 ## Características
 
 - **Linter & parser multilingüe** (español / inglés) con verificación de invariantes aritméticos
-- **Matriz de galga** con calibración dimensional según grosor de hilo y aguja
+- **Matriz de tensión** con calibración dimensional según grosor de hilo y aguja
 - **Visualizador 3D paramétrico** (Google Filament) con anillos asimétricos y relieve de puntos
 - **Soporte multipieza** con colores, ensamblado y gizmos de posicionamiento 3D
 - **Persistencia offline** (Room) y **sincronización en la nube** (Supabase)

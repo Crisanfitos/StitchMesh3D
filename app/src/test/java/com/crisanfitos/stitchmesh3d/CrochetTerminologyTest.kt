@@ -38,4 +38,15 @@ class CrochetTerminologyTest {
         assertTrue("Debe contener 'tension_calibrator_title'", content.contains("tension_calibrator_title"))
         assertFalse("strings.xml no debe contener 'galga'", content.lowercase().contains("galga"))
     }
+
+    @Test
+    fun testNoProhibitedTermsInReadme() {
+        val readmeFile = File("../README.md").takeIf { it.exists() } ?: File("README.md")
+        assertTrue("README.md debe existir", readmeFile.exists())
+        val content = readmeFile.readText().lowercase()
+        assertFalse(
+            "README.md no debe contener el término prohibido 'galga'. Se debe usar 'tensión'.",
+            content.contains("galga")
+        )
+    }
 }
